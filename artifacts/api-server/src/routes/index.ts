@@ -1,0 +1,31 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import authRouter from "./auth";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use("/auth", authRouter);
+
+router.get("/music/search", async (req, res) => {
+  const { q } = req.query;
+  if (!q) {
+    res.status(400).json({ error: "Query parameter 'q' is required" });
+    return;
+  }
+
+  try {
+    const jamendoRes = await fetch(
+      `https://api.jamendo.com/v3.0/tracks/?client_id=b6747d04&format=json&search=${encodeURIComponent(
+        q as string
+      )}&limit=15&audioformat=mp31&imagesize=200&order=popularity_total`
+    );
+    const data = await jamendoRes.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Jamendo proxy error:", error);
+    res.status(500).json({ error: "Failed to fetch from Jamendo" });
+  }
+});
+
+export default router;

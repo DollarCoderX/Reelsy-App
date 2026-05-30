@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Reelsy"
+version = "1.0.0"
+id = "artifacts/reelsy"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24017
+
+[services.development]
+run = "pnpm --filter @workspace/reelsy run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/reelsy", "run", "build" ]
+publicDir = "artifacts/reelsy/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24017"
+BASE_PATH = "/"
