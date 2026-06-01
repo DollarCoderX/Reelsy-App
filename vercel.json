@@ -1,6 +1,6 @@
 {
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @workspace/reelsy build",
+  "buildCommand": "pnpm --filter @workspace/api-server build && pnpm --filter @workspace/reelsy build",
   "outputDirectory": "artifacts/reelsy/dist/public",
   "rewrites": [
     {
