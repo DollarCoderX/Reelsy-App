@@ -45,7 +45,16 @@ const AuthEmail = () => {
           });
           return;
         }
-
+        // Handle rate limiting
+        if (response.status === 429) {
+          const cooldownMinutes = data?.cooldownMinutes || "some";
+          toast({
+            title: "Too Many Requests",
+            description: `You've exceeded the OTP request limit. Please try again in ${cooldownMinutes} minute(s).`,
+            variant: "destructive",
+          });
+          return;
+        }
         throw new Error("Failed to send OTP");
       }
 

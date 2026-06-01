@@ -1250,10 +1250,22 @@ const PostCard = ({
 const HomeTab = ({ onNavVisible }: HomeTabProps) => {
   const { user } = useAppContext();
   const [feedType, setFeedType] = useState<"foryou" | "following">("foryou");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [newPostsPill, setNewPostsPill] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showShineLoader, setShowShineLoader] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(10);
+
+  useEffect(() => {
+    setIsLoadingFeed(true);
+    setVisibleCount(10);
+    const t = setTimeout(() => {
+      setIsLoadingFeed(false);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [feedType, activeTag]);
 
   type SupportNotif = {
     reportId: string;
@@ -1284,7 +1296,6 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
   });
   const [autonomousBotPosts, setAutonomousBotPosts] = useState<BotPost[]>(readAutonomousBotPosts);
   const [reshareTarget, setReshareTarget] = useState<PostData | null>(null);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
 
   const [seenSheetPost, setSeenSheetPost] = useState<PostData | null>(null);
   const [browserOpenPost, setBrowserOpenPost] = useState<PostData | null>(null);
@@ -1538,6 +1549,11 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     if (el.scrollTop < lastScrollY.current && el.scrollTop > 60) setNewPostsPill(true);
     if (el.scrollTop < 20) setNewPostsPill(false);
     lastScrollY.current = el.scrollTop;
+
+    // Trigger lazy loading to eliminate feed lag
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+      setVisibleCount((prev) => Math.min(prev + 10, allPosts.length));
+    }
   };
 
   const handleNewPost = (postData: { type: "text" | "image" | "video"; content: string; media?: string | string[]; music?: { title: string; artist: string; url: string }; location?: { lat: number; lng: number; name: string }; aiGenerated?: boolean }) => {
@@ -1834,28 +1850,51 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
 
         <div className="h-px bg-secondary/60 mx-4 my-1" />
 
-        {allPosts
-          .filter((p) => !activeTag || p.content.includes(activeTag))
-          .map((post, i) => {
-            const bot = post.botId ? BOTS.find((b) => b.id === post.botId) : undefined;
-            return (
-              <motion.div key={post.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.22, delay: Math.min(i * 0.04, 0.3) }}>
-                <PostCard
-                  post={post} bot={bot}
-                  currentUserAvatar={post.isUserPost ? user?.avatar || userAvatarUrl : undefined}
-                  currentUserNickname={post.isUserPost ? (user?.nickname || "You") : undefined}
-                  onAvatarTap={openProfile}
-                  onComment={openComments}
-                  onRepost={openComposer}
-                  onTagClick={setActiveTag}
-                  onSeenTap={openSeenSheet}
-                  onAdOpen={openAdBrowser}
-                />
-                <div className="h-px bg-secondary/40 mx-4" />
-              </motion.div>
-            );
-          })}
+        {isLoadingFeed ? (
+          <div className="space-y-1">
+            {[1, 2, 3, 4].map((n) => (
+              <div key={n} className="flex gap-3 px-4 py-4 border-b border-secondary/40 animate-pulse">
+                <div className="shrink-0 w-11 h-11 rounded-full bg-secondary" />
+                <div className="flex-1 space-y-3 pt-1">
+                  <div className="h-3 w-1/4 rounded-full bg-secondary" />
+                  <div className="space-y-2">
+                    <div className="h-3 w-11/12 rounded-full bg-secondary" />
+                    <div className="h-3 w-4/5 rounded-full bg-secondary" />
+                  </div>
+                  <div className="flex gap-4 pt-1">
+                    <div className="h-3 w-8 rounded-full bg-secondary" />
+                    <div className="h-3 w-8 rounded-full bg-secondary" />
+                    <div className="h-3 w-8 rounded-full bg-secondary" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          allPosts
+            .filter((p) => !activeTag || p.content.includes(activeTag))
+            .slice(0, visibleCount)
+            .map((post, i) => {
+              const bot = post.botId ? BOTS.find((b) => b.id === post.botId) : undefined;
+              return (
+                <motion.div key={post.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22, delay: Math.min(i * 0.04, 0.3) }}>
+                  <PostCard
+                    post={post} bot={bot}
+                    currentUserAvatar={post.isUserPost ? user?.avatar || userAvatarUrl : undefined}
+                    currentUserNickname={post.isUserPost ? (user?.nickname || "You") : undefined}
+                    onAvatarTap={openProfile}
+                    onComment={openComments}
+                    onRepost={openComposer}
+                    onTagClick={setActiveTag}
+                    onSeenTap={openSeenSheet}
+                    onAdOpen={openAdBrowser}
+                  />
+                  <div className="h-px bg-secondary/40 mx-4" />
+                </motion.div>
+              );
+            })
+        )}
       </div>
 
       {/* FAB */}

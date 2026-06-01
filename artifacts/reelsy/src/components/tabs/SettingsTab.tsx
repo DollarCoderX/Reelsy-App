@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { AppLanguage, useAppContext } from "@/context/AppContext";
 import {
   User, Mail, Shield, Bell, Globe, Moon, HelpCircle, FileText, LogOut, ChevronRight,
-  Sun, Camera, Lock, Star, Check, X, Crown, Flame, Hash, ChevronLeft,
+  Sun, Camera, Lock, Star, Check, X, Crown, VerifiedIcon,Flame, Hash, ChevronLeft,
   Eye, EyeOff, Users, Clock, Infinity as InfinityIcon, MessageSquare, Loader2, Palette,
   Send,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AvatarCustomizer from "../AvatarCustomizer";
+import { VerificationModal } from "../VerificationModal";
 import reelsyLogo from "@assets/db1645cc1ed95625a5dff41ee9a0f164_1778235733181.jpg";
 
 const AvatarDisplay = ({ src, className }: { src: string; className: string }) =>
@@ -59,7 +60,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   free: ["Unlimited texts & calls", "Posts visible 24 hours", "Chat history: 24 hours", "10 AI requests/day"],
   premium: ["Unlimited texts & calls", "Posts up to 7 days (customizable)", "Chat history: forever", "30 AI requests/day", "Clean message delete"],
   "premium+": ["Everything in Premium", "50 AI requests/day", "Custom number format", "Ghost delete (no trace)", "Enhanced post control"],
-  gold: ["Ultimate access — Reelsy & Uraincle only", "Not available for purchase"],
+  verified: ["Business access", "AD management", "In app payment"],
 };
 
 const PLAN_BASE_PRICES_USD: Record<string, number> = {
@@ -113,7 +114,7 @@ const UI_EXCHANGE_RATES_TO_TARGET: Record<string, number> = {
 
 const formatPlanPrice = (plan: string, currency: string | null | undefined) => {
   if (plan === "free") return "Free";
-  if (plan === "gold") return "Invite only";
+  if (plan === "verified") return "Invite only";
 
   const baseUsd = PLAN_BASE_PRICES_USD[plan as keyof typeof PLAN_BASE_PRICES_USD];
   if (!baseUsd) return "";
@@ -135,7 +136,7 @@ const PLAN_ICONS: Record<string, React.ElementType> = {
   free: Star,
   premium: Crown,
   "premium+": Flame,
-  gold: Crown,
+  verified: VerifiedIcon,
 };
 
 
@@ -153,10 +154,10 @@ const SubscriptionModal = ({ onClose }: { onClose: () => void }) => {
   const [paying, setPaying] = useState(false);
   const [done, setDone] = useState(false);
 
-  const plans = ["free", "premium", "premium+", "gold"];
+  const plans = ["free", "premium", "premium+", "verified"];
 
   const handleUpgrade = async () => {
-    if (selected === "gold" || selected === tier) { onClose(); return; }
+    if (selected === "verified" || selected === tier) { onClose(); return; }
     setPaying(true);
 
     const isValid = await ip.checkConnection();
@@ -193,7 +194,7 @@ const SubscriptionModal = ({ onClose }: { onClose: () => void }) => {
             const Icon = PLAN_ICONS[plan];
             const isActive = tier === plan;
             const isSelected = selected === plan;
-            const locked = plan === "gold";
+            const locked = plan === "verified";
             return (
               <motion.button key={plan} whileTap={{ scale: locked ? 1 : 0.98 }}
                 onClick={() => !locked && setSelected(plan)}
@@ -231,10 +232,10 @@ const SubscriptionModal = ({ onClose }: { onClose: () => void }) => {
             </motion.div>
           ) : (
             <motion.button key="btn" whileTap={{ scale: 0.97 }} onClick={handleUpgrade}
-              disabled={selected === "gold" || paying}
+              disabled={selected === "verified" || paying}
               className="w-full py-4 rounded-full bg-foreground text-background font-bold text-[14px] disabled:opacity-50 flex items-center justify-center gap-2">
               {paying && <div className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" />}
-              {paying ? "Processing..." : selected === tier ? "Current Plan" : selected === "gold" ? "Invite Only" : `Upgrade to ${selected}`}
+              {paying ? "Processing..." : selected === tier ? "Current Plan" : selected === "verified" ? "Invite Only" : `Upgrade to ${selected}`}
             </motion.button>
           )}
         </AnimatePresence>
@@ -275,7 +276,7 @@ const VirtualNumberModal = ({ onClose, onSave }: { onClose: () => void; onSave: 
     setTimeout(() => setScanDone(true), 2400);
   };
 
-  const isPremiumPlus = tier === "premium+" || tier === "gold";
+  const isPremiumPlus = tier === "premium+";
 
   if (tier === "free") {
     return (
@@ -1025,7 +1026,7 @@ const TermsSheet = ({ onClose }: { onClose: () => void }) => (
       </div>
       <div>
         <p className="font-bold text-foreground text-[13px] mb-1">5. Subscriptions & Billing</p>
-        <p>Paid plans are billed monthly. You may cancel anytime. Refunds are handled case-by-case by our support team. Gold tier is invite-only and not purchasable.</p>
+        <p>Paid plans are billed monthly. You may cancel anytime. Refunds are handled case-by-case by our support team. verified tier is invite-only and not purchasable.</p>
       </div>
       <div>
         <p className="font-bold text-foreground text-[13px] mb-1">6. Region Avaliablity</p>
@@ -1200,14 +1201,14 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
   const [betaFeatures, setBetaFeatures] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
-  const [sheet, setSheet] = useState<"subscription" | "virtualNumber" | "editProfile" | "privacy" | "notifications" | "retention" | "language" | "help" | "support" | "terms" | "rate" | "password" | null>(null);
+  const [sheet, setSheet] = useState<"subscription" | "virtualNumber" | "editProfile" | "privacy" | "notifications" | "retention" | "language" | "help" | "support" | "terms" | "rate" | "password" | "verification" | null>(null);
 
   const tierColors: Record<string, string> = {
     free: "text-muted-foreground", premium: "text-amber-500",
-    "premium+": "text-violet-500", gold: "text-yellow-500",
+    "premium+": "text-violet-500", verified: "text-yellow-500",
   };
   const tierLabels: Record<string, string> = {
-    free: "Free", premium: "Premium", "premium+": "Premium+", gold: "Gold",
+    free: "Free", premium: "Premium", "premium+": "Premium+", verified: "verified",
   };
   const TierIcon = { free: Star, premium: Crown, "premium+": Flame, gold: Crown }[tier];
 
@@ -1316,6 +1317,7 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
           <Section title={t("Account")} delay={0.1}>
             <SettingRow icon={User} label={t("Edit Profile")} onPress={() => setSheet("editProfile")} />
             <SettingRow icon={Mail} label={t("Email")} />
+            <SettingRow icon={VerifiedIcon} label={t("Get Verified Badge")} onPress={() => setSheet("verification")} />
             <SettingRow icon={Shield} label={t("Privacy")} onPress={() => setSheet("privacy")} />
           </Section>
 
@@ -1430,6 +1432,7 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
         {sheet === "terms" && <TermsSheet onClose={() => setSheet(null)} />}
         {sheet === "rate" && <RateReelsySheet onClose={() => setSheet(null)} />}
         {sheet === "password" && <ChangePasswordSheet onClose={() => setSheet(null)} />}
+        {sheet === "verification" && <VerificationModal onClose={() => setSheet(null)} onSubmit={() => {}} onApproved={(approved) => { if (user && approved) setUser({ ...user, verified: true }); setSheet(null); }} />}
       </AnimatePresence>
     </>
   );

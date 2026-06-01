@@ -3,7 +3,7 @@ import { useIPRestriction, IPRestrictionHook } from "@/hooks/useIPRestriction";
 
 export type AppPhase =
   | "splash" | "welcome" | "auth-tos" | "auth-email"
-  | "auth-otp" | "auth-profile" | "auth-interests"
+  | "auth-otp" | "auth-password" | "auth-profile" | "auth-interests"
   | "auth-friends" | "auth-permissions" | "main";
 
 export type Theme = "light" | "dark";
@@ -21,6 +21,7 @@ export interface UserProfile {
   email?:string;
   friendPolicy?: "open" | "request-only";
   coverImage?: string;
+  verified?: boolean; // Verified badge for businesses (not a tier, just a flag)
 }
 
 export interface ChatWallpaper {

@@ -38,7 +38,7 @@ const generateSuggestions = (baseUsername: string): string[] => {
 };
 
 const AuthProfile = () => {
-  const { setAppPhase, setUser } = useAppContext();
+  const { setAppPhase, setUser, authEmail } = useAppContext();
   const [username, setUsername] = useState("");
   const [nickname, setNickname] = useState("");
   const [age, setAge] = useState("");
@@ -81,13 +81,21 @@ const AuthProfile = () => {
 
   const handleNext = () => {
     if (!username || !nickname || !age) return;
+    
+    // Check if username is available before proceeding
+    const cleanUsername = username.toLowerCase().replace(/^@/, "");
+    if (TAKEN_USERNAMES.has(cleanUsername)) {
+      showToast("❌ This username is already taken. Please choose another one.");
+      return;
+    }
+    
     const ageNum = parseInt(age);
     // Age is saved strictly - no restrictions, system will use this for content filtering
     setUser({ username: username.startsWith("@") ? username : `@${username}`, nickname, age: ageNum, avatar });
     setAppPhase("auth-interests");
   };
 
-  const canProceed = !!username.trim() && !!nickname.trim() && !!age;
+  const canProceed = !!username.trim() && !!nickname.trim() && !!age && isAvailable === true;
 
   return (
     <>
@@ -97,7 +105,7 @@ const AuthProfile = () => {
         className="absolute inset-0 flex flex-col bg-background text-foreground"
       >
         <div className="shrink-0 px-4 pt-5">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => setAppPhase("auth-otp")}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => setAppPhase(authEmail ? "auth-password" : "auth-email")}
             className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
             <ChevronLeft className="w-4 h-4" strokeWidth={2.5} />
           </motion.button>

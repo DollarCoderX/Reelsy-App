@@ -10,6 +10,7 @@ import WelcomeScreen from "@/components/WelcomeScreen";
 import AuthToS from "@/components/AuthToS";
 import AuthEmail from "@/components/AuthEmail";
 import AuthOTP from "@/components/AuthOTP";
+import AuthPassword from "@/components/AuthPassword";
 import AuthProfile from "@/components/AuthProfile";
 import AuthInterests from "@/components/AuthInterests";
 import AuthFriendSuggestions from "@/components/AuthFriendSuggestions";
@@ -32,6 +33,7 @@ function AppContent() {
       {appPhase === "auth-tos" && <AuthToS key="auth-tos" />}
       {appPhase === "auth-email" && <AuthEmail key="auth-email" />}
       {appPhase === "auth-otp" && <AuthOTP key="auth-otp" />}
+      {appPhase === "auth-password" && <AuthPassword key="auth-password" />}
       {appPhase === "auth-profile" && <AuthProfile key="auth-profile" />}
       {appPhase === "auth-interests" && <AuthInterests key="auth-interests" />}
       {appPhase === "auth-friends" && <AuthFriendSuggestions key="auth-friends" />}

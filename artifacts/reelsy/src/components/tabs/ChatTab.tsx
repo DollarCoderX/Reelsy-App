@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, Search, Edit3, X, Send, Mic, BadgeCheckIcon,
@@ -9,7 +9,7 @@ import {
   ShoppingCart, Wifi, Battery, CreditCard, AlertCircle,
   Palette, BellOff, UserX, Flag, Eraser, AlertTriangle, ChevronRight,
   Bot, HelpCircle, Zap, LifeBuoy, Star, ChevronDown, Terminal, SmileIcon, Repeat2, Eye,
-  Archive, Calendar, User, BarChart2, Headphones, ShoppingBag, Trophy, Lightbulb, Music, Leaf, EyeOff, Download, Camera, Share2
+  Archive, Calendar, User, BarChart2, Headphones, ShoppingBag, Trophy, Lightbulb, Music, Leaf, EyeOff, Download, Camera, Share2, Loader2, ThumbsUp, ThumbsDown
 } from "lucide-react";
 import reelsyLogo from "@assets/j.png";
 import botAvatar from "@assets/bot.jpg";
@@ -1722,7 +1722,7 @@ const MediaEditor = ({ media, tier, onSend, onClose }: {
   const [caption, setCaption] = useState("");
   const [viewOnce, setViewOnce] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
-  const canUseViewOnce = tier === "premium+" || tier === "gold";
+  const canUseViewOnce = tier === "premium+" || tier === "premium" || tier === "gold" || (/* verified businesses get view-once */ false);
   const isVideo = media.type === "video";
 
   return (
@@ -2081,13 +2081,14 @@ const BlockConfirm = ({ name, onBlock, onClose }: { name: string; onBlock: () =>
 
 // ---- Main ChatTab ----
 const ChatTab = ({ onNavVisible }: ChatTabProps) => {
-  const { reelsyNumber, tier, t } = useAppContext();
+  const { reelsyNumber, tier, t, ip } = useAppContext();
   const [friendBotIds, setFriendBotIds] = useState<string[]>(readFriendBotIds);
 
   const buildInitialThreads = (): ChatThread[] => {
     const base: ChatThread[] = [
       { id: "reelsy-official", name: "Reelsy", lastMessage: "Welcome to Reelsy! 🎉", time: "now", unread: 1, isGroup: false, isReelsy: true, pinned: true },
       { id: "reelsy-bot", name: "ReelsyBot", lastMessage: "Send .menu to see all commands", time: "now", unread: 1, isGroup: false, isReelsyBot: true, pinned: true },
+      { id: "mock-group-1", name: "Creators Chain 🎬", lastMessage: "Sarah: Let's launch this tonight! 🔥🔥🔥", time: "25m", unread: 5, isGroup: true, members: ["kabil", "sarah", "micheal", "jacob"], pinned: true },
       ...BOTS.map((b) => ({
         id: b.id, name: b.name, botId: b.id,
         lastMessage: friendBotIds.includes(b.id)
@@ -2107,7 +2108,39 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
 
   const [threads, setThreads] = useState<ChatThread[]>(buildInitialThreads);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>(() => {
+    const now = Date.now();
+    const D = 24 * 60 * 60 * 1000; // one day in ms
+    const fmt = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return {
+      "mock-group-1": [
+        // ---- 2 days ago ----
+        { id: now - 2 * D - 10 * 3600000, fromName: "System", content: "Creators Chain 🎬 was created", time: fmt(now - 2 * D - 10 * 3600000), isMine: false },
+        { id: now - 2 * D - 9.5 * 3600000, fromName: "Kabil", content: "Hey team! 👋 We need to start planning the full Reelsy launch strategy.", time: fmt(now - 2 * D - 9.5 * 3600000), isMine: false },
+        { id: now - 2 * D - 9 * 3600000, fromName: "Sarah", content: "I'm so excited for this 🎉 I've been working on some high-contrast visual filters for our Reels.", time: fmt(now - 2 * D - 9 * 3600000), isMine: false },
+        { id: now - 2 * D - 8.5 * 3600000, fromName: "Micheal", content: "Great! I've also been optimizing the backend — response times are down to 40ms. 🚀 Nothing will stop us.", time: fmt(now - 2 * D - 8.5 * 3600000), isMine: false },
+        { id: now - 2 * D - 8 * 3600000, fromName: "Jacob", content: "Love it. Let's set a date. How about we soft-launch end of the week?", time: fmt(now - 2 * D - 8 * 3600000), isMine: false },
+        { id: now - 2 * D - 7.5 * 3600000, fromName: "Kabil", content: "End of week works for me. I'll draft a content calendar and share it here.", time: fmt(now - 2 * D - 7.5 * 3600000), isMine: false },
+        // ---- Yesterday ----
+        { id: now - D - 11 * 3600000, fromName: "Kabil", content: "📅 Sharing the content calendar draft — we have 12 posts planned for launch week, 2 per day.", time: fmt(now - D - 11 * 3600000), isMine: false },
+        { id: now - D - 10.5 * 3600000, fromName: "Sarah", content: "This looks amazing Kabil! I finished the 5 visual filter assets. They're fire 🔥 ready to export.", time: fmt(now - D - 10.5 * 3600000), isMine: false },
+        { id: now - D - 10 * 3600000, fromName: "Micheal", content: "Backend is fully deployed to staging. Load tests pass at 10k concurrent users. We're good 💪", time: fmt(now - D - 10 * 3600000), isMine: false },
+        { id: now - D - 9.5 * 3600000, fromName: "Jacob", content: "Hashtag research done — I found 8 trending tags that match our niche perfectly. Will paste them in.", time: fmt(now - D - 9.5 * 3600000), isMine: false },
+        { id: now - D - 9 * 3600000, fromName: "Jacob", content: "#ReelsyLaunch #CreatorFirst #SocialReinvented #MakeItReal #ReelsyApp #NextGenSocial #BuildInPublic #Creators2024", time: fmt(now - D - 9 * 3600000), isMine: false },
+        { id: now - D - 8.5 * 3600000, fromName: "Kabil", content: "Perfect. Sarah please export the filters as PNGs and share them in the group.", time: fmt(now - D - 8.5 * 3600000), isMine: false },
+        // ---- Today (unread — these 5 will trigger the Reelsy AI box) ----
+        { id: now - 4.2 * 3600000, fromName: "Sarah", content: "✅ Done! All 5 filters exported and ready. Uploading to the shared drive now.", time: fmt(now - 4.2 * 3600000), isMine: false },
+        { id: now - 3.8 * 3600000, fromName: "Micheal", content: "Prod environment is fully green 🟢 I just ran the final deployment pipeline — all checks passed!", time: fmt(now - 3.8 * 3600000), isMine: false },
+        { id: now - 3.2 * 3600000, fromName: "Jacob", content: "The landing page copy is polished. SEO meta tags are set and we're indexed on Google already 🤯", time: fmt(now - 3.2 * 3600000), isMine: false },
+        { id: now - 2.5 * 3600000, fromName: "Kabil", content: "This is unreal guys. We are so ready. Let's launch TONIGHT at 9pm! 🚀🎬", time: fmt(now - 2.5 * 3600000), isMine: false },
+        { id: now - 25 * 60000, fromName: "Sarah", content: "Let's launch this tonight! Who's ready? 🔥🔥🔥", time: fmt(now - 25 * 60000), isMine: false },
+      ]
+    };
+  });
+  const [openedWithUnread, setOpenedWithUnread] = useState<number>(0);
+  const [metaAiSummary, setMetaAiSummary] = useState<string | null>(null);
+  const [isMetaAiLoading, setIsMetaAiLoading] = useState(false);
+  const [showMetaAiBox, setShowMetaAiBox] = useState(true);
   const [input, setInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -2177,30 +2210,33 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
   };
 
   useEffect(() => {
-    const init: Record<string, ChatMessage[]> = {};
-    BOTS.forEach((b) => {
-      const botMsgs = BOT_INTRO_MESSAGES.filter((m) => m.botId === b.id).map((m) => m.text);
-      const acceptedMessage: ChatMessage[] = friendBotIds.includes(b.id)
-        ? [{
-          id: 0, fromId: b.id, fromName: b.name,
-          content: `${b.name} accepted your friend request. You can message them anytime.`,
-          time: "now", isMine: false,
-        }]
-        : [];
-      init[b.id] = [
-        ...acceptedMessage,
-        ...botMsgs.map((m, i) => ({
-        id: i + 1, fromId: b.id, fromName: b.name, content: m,
-        time: `${9 + Math.floor(i / 2)}:${String((i * 7) % 60).padStart(2, "0")} AM`, isMine: false,
-      })),
+    setMessages((prev) => {
+      const init: Record<string, ChatMessage[]> = {};
+      BOTS.forEach((b) => {
+        const botMsgs = BOT_INTRO_MESSAGES.filter((m) => m.botId === b.id).map((m) => m.text);
+        const acceptedMessage: ChatMessage[] = friendBotIds.includes(b.id)
+          ? [{
+            id: 0, fromId: b.id, fromName: b.name,
+            content: `${b.name} accepted your friend request. You can message them anytime.`,
+            time: "now", isMine: false,
+          }]
+          : [];
+        init[b.id] = [
+          ...acceptedMessage,
+          ...botMsgs.map((m, i) => ({
+            id: i + 1, fromId: b.id, fromName: b.name, content: m,
+            time: `${9 + Math.floor(i / 2)}:${String((i * 7) % 60).padStart(2, "0")} AM`, isMine: false,
+          })),
+        ];
+      });
+      init["reelsy-official"] = [...REELSY_MSGS];
+      init["reelsy-bot"] = [
+        { id: 1, fromName: "ReelsyBot", content: "👋 Hey! I'm ReelsyBot V5 — your AI-powered assistant.\n\nSend .menu to see all my commands. I can tell jokes, give advice, do math, check weather, and more! ⚡", time: "9:00 AM", isMine: false },
       ];
+      if (reelsyNumber) init["sms"] = [];
+      // Preserve mock group messages — do NOT overwrite them
+      return { ...init, "mock-group-1": prev["mock-group-1"] || [] };
     });
-    init["reelsy-official"] = [...REELSY_MSGS];
-    init["reelsy-bot"] = [
-      { id: 1, fromName: "ReelsyBot", content: "👋 Hey! I'm ReelsyBot V5 — your AI-powered assistant.\n\nSend .menu to see all my commands. I can tell jokes, give advice, do math, check weather, and more! ⚡", time: "9:00 AM", isMine: false },
-    ];
-    if (reelsyNumber) init["sms"] = [];
-    setMessages(init);
   }, [reelsyNumber]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [activeMessages, isTyping]);
@@ -2288,12 +2324,20 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     : undefined;
 
   const openThread = (id: string) => {
+    const thread = threads.find((t) => t.id === id);
+    setOpenedWithUnread(thread ? thread.unread : 0);
+    setMetaAiSummary(null);
+    setIsMetaAiLoading(false);
+    setShowMetaAiBox(true);
     setActiveId(id);
     onNavVisible?.(false);
     setThreads((p) => p.map((t) => t.id === id ? { ...t, unread: 0 } : t));
   };
 
   const closeThread = () => {
+    setOpenedWithUnread(0);
+    setMetaAiSummary(null);
+    setShowMetaAiBox(false);
     setActiveId(null);
     onNavVisible?.(true);
     setReplyTo(null);
@@ -2306,6 +2350,48 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     setShowWallpaperPicker(false);
     setShowReport(false);
     setShowBlockConfirm(false);
+  };
+
+  const handleMetaAiSummarize = async () => {
+    if (!activeId) return;
+    setIsMetaAiLoading(true);
+    setMetaAiSummary(null);
+    try {
+      const activeMsgs = messages[activeId] || [];
+      const count = openedWithUnread || 5;
+      const unreadList = activeMsgs.filter(m => m.fromName !== "System" && !m.isMine).slice(-count);
+
+      if (unreadList.length === 0) {
+        setMetaAiSummary("No unread messages to summarize.");
+        setIsMetaAiLoading(false);
+        return;
+      }
+
+      const msgsText = unreadList
+        .map(m => `${m.fromName} (${m.time}): ${m.content}`)
+        .join("\n");
+
+      const prompt = [
+        `You are Reelsy AI, a premium AI assistant built into the Reelsy social platform.`,
+        `A user just opened a group chat and missed ${count} messages. Give them a rich, friendly, WhatsApp-style catch-up summary.`,
+        `Clearly name each person and describe exactly what they said or did. Be specific — mention files shared, decisions made, tasks assigned, and any excitement or energy in the chat.`,
+        `Write in 3-5 concise bullet points, each starting with the person's name in bold. End with a one-line vibe check of the group's mood.`,
+        `Do NOT say you are an AI or mention Pollinations. Sound natural and premium.`,
+        ``,
+        `Unread messages:`,
+        msgsText,
+      ].join("\n");
+
+      const response = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`);
+      if (!response.ok) throw new Error("Pollinations request failed");
+      const text = await response.text();
+      setMetaAiSummary(text.trim());
+    } catch (e) {
+      console.error("Reelsy AI summary failed:", e);
+      setMetaAiSummary("Couldn't load the summary right now. Please try again.");
+    } finally {
+      setIsMetaAiLoading(false);
+    }
   };
 
   const sendMessage = useCallback((overrideText?: string, file?: File) => {
@@ -2821,6 +2907,53 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                 </>
               )}
               <div className="relative z-10">
+              {activeThread.isGroup && openedWithUnread >= 4 && showMetaAiBox && (!ip?.countryCode || ["NG", "US", "CA"].includes(ip.countryCode.toUpperCase())) && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                  className="mx-3 my-3 p-4 rounded-2xl bg-secondary/80 border border-secondary/40 relative overflow-hidden backdrop-blur-md shadow-lg z-20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white text-[9px] font-bold">
+                        Ai
+                      </div>
+                      <span className="text-[11px] font-bold text-foreground">Reelsy AI</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground font-semibold">visible only to you</span>
+                    </div>
+                    <button onClick={() => setShowMetaAiBox(false)} className="text-muted-foreground hover:text-foreground">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {isMetaAiLoading ? (
+                      <div className="flex items-center gap-2 py-1">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-500 animate-duration-1000" />
+                        <span className="text-[12px] text-muted-foreground font-medium">Summarizing conversation...</span>
+                      </div>
+                    ) : metaAiSummary ? (
+                      <div className="text-[12.5px] leading-relaxed text-foreground bg-background/40 p-2.5 rounded-xl border border-secondary/30">
+                        {metaAiSummary}
+                      </div>
+                    ) : (
+                      <button onClick={handleMetaAiSummarize}
+                        className="w-full py-2 px-3 rounded-xl bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/15 text-purple-600 text-[12px] font-semibold text-left flex items-center justify-between transition-colors">
+                        <span>Summarize last {openedWithUnread} unread messages</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-secondary/20">
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <Lock className="w-3 h-3" />
+                      <span>Private Processing</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="text-muted-foreground hover:text-foreground"><ThumbsUp className="w-3.5 h-3.5" /></button>
+                      <button className="text-muted-foreground hover:text-foreground"><ThumbsDown className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
               {!activeThread.isSMS && !activeThread.isGroup && (
                 <div className="flex items-center gap-1.5 justify-center my-2">
                   <Lock className="w-3 h-3 text-muted-foreground" />
@@ -2828,62 +2961,98 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                 </div>
               )}
 
-              {activeMessages.map((msg) => {
-                if (msg.isDeleted) {
-                  return (
-                    <div key={msg.id} className={`flex ${msg.isMine ? "justify-end" : "justify-start"}`}>
-                      <p className="text-[11px] text-muted-foreground italic px-3 py-1.5 bg-secondary/50 rounded-full">Message deleted</p>
+              {(() => {
+                let lastDateStr = "";
+                return activeMessages.map((msg) => {
+                  const msgDate = msg.id > 1000000000000 ? new Date(msg.id) : new Date();
+                  const dateStr = msgDate.toDateString();
+                  let showDivider = false;
+                  if (dateStr !== lastDateStr) {
+                    showDivider = true;
+                    lastDateStr = dateStr;
+                  }
+                  const formatDividerDate = (d: Date) => {
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
+                    if (d.toDateString() === today.toDateString()) return "Today";
+                    if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+                    return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+                  };
+                  const divider = showDivider ? (
+                    <div className="flex justify-center my-3 select-none w-full" key={`divider-${msg.id}`}>
+                      <span className="px-3 py-1 rounded-full bg-secondary/80 text-[10px] font-bold text-muted-foreground shadow-sm">
+                        {formatDividerDate(msgDate)}
+                      </span>
                     </div>
-                  );
-                }
+                  ) : null;
+
+                  if (msg.isDeleted) {
+                    return (
+                      <Fragment key={msg.id}>
+                        {divider}
+                        <div className={`flex ${msg.isMine ? "justify-end" : "justify-start"}`}>
+                          <p className="text-[11px] text-muted-foreground italic px-3 py-1.5 bg-secondary/50 rounded-full">Message deleted</p>
+                        </div>
+                      </Fragment>
+                    );
+                  }
 
                 const singleEmoji = isSingleEmoji(msg.content);
 
                 if (singleEmoji && SPECIAL_EMOJIS[msg.content.trim()]) {
                   return (
-                    <div key={msg.id}>
-                      <AnimatedEmoji emoji={msg.content.trim()} isMine={msg.isMine} />
-                      {msg.reaction && (
-                        <div className={`flex ${msg.isMine ? "justify-end" : "justify-start"} -mt-1 mb-1`}>
-                          <span className="text-[14px]">{msg.reaction}</span>
-                        </div>
-                      )}
-                    </div>
+                    <Fragment key={msg.id}>
+                      {divider}
+                      <div>
+                        <AnimatedEmoji emoji={msg.content.trim()} isMine={msg.isMine} />
+                        {msg.reaction && (
+                          <div className={`flex ${msg.isMine ? "justify-end" : "justify-start"} -mt-1 mb-1`}>
+                            <span className="text-[14px]">{msg.reaction}</span>
+                          </div>
+                        )}
+                      </div>
+                    </Fragment>
                   );
                 }
 
                 // Sticker message rendering
                 if (msg.mediaType === "sticker" && msg.mediaUrl) {
                   return (
-                    <div key={msg.id} className={`flex flex-col ${msg.isMine ? "items-end" : "items-start"} my-1.5`}>
-                      {msg.isForwarded && (
-                        <div className={`flex items-center gap-1 text-muted-foreground mb-0.5 ${msg.isMine ? "justify-end" : "justify-start"}`}>
-                          <ForwardIcon className="w-2.5 h-2.5" />
-                          <span className="text-[10px]">Forwarded</span>
-                        </div>
-                      )}
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="w-28 h-28 overflow-hidden rounded-2xl cursor-pointer active:scale-95 transition-transform"
-                      >
-                        <img src={msg.mediaUrl} className="w-full h-full object-contain" alt="sticker" />
-                      </motion.div>
-                      <div className={`flex items-center gap-1.5 mt-0.5 ${msg.isMine ? "flex-row-reverse" : ""}`}>
-                        {msg.reaction && <span className="text-[14px] -mt-0.5">{msg.reaction}</span>}
-                        <span className="text-[10px] text-muted-foreground">{msg.time}</span>
-                        {msg.isMine && (
-                          <span className="text-muted-foreground">
-                            <CheckCheck className="w-3 h-3" strokeWidth={2} />
-                          </span>
+                    <Fragment key={msg.id}>
+                      {divider}
+                      <div className={`flex flex-col ${msg.isMine ? "items-end" : "items-start"} my-1.5`}>
+                        {msg.isForwarded && (
+                          <div className={`flex items-center gap-1 text-muted-foreground mb-0.5 ${msg.isMine ? "justify-end" : "justify-start"}`}>
+                            <ForwardIcon className="w-2.5 h-2.5" />
+                            <span className="text-[10px]">Forwarded</span>
+                          </div>
                         )}
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="w-28 h-28 overflow-hidden rounded-2xl cursor-pointer active:scale-95 transition-transform"
+                        >
+                          <img src={msg.mediaUrl} className="w-full h-full object-contain" alt="sticker" />
+                        </motion.div>
+                        <div className={`flex items-center gap-1.5 mt-0.5 ${msg.isMine ? "flex-row-reverse" : ""}`}>
+                          {msg.reaction && <span className="text-[14px] -mt-0.5">{msg.reaction}</span>}
+                          <span className="text-[10px] text-muted-foreground">{msg.time}</span>
+                          {msg.isMine && (
+                            <span className="text-muted-foreground">
+                              <CheckCheck className="w-3 h-3" strokeWidth={2} />
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    </Fragment>
                   );
                 }
 
                 return (
-                  <div key={msg.id} className={`flex flex-col ${msg.isMine ? "items-end" : "items-start"}`}>
+                  <Fragment key={msg.id}>
+                    {divider}
+                    <div className={`flex flex-col ${msg.isMine ? "items-end" : "items-start"}`}>
                     {msg.isForwarded && (
                       <div className={`flex items-center gap-1 text-muted-foreground mb-0.5 ${msg.isMine ? "justify-end" : "justify-start"}`}>
                         <ForwardIcon className="w-2.5 h-2.5" />
@@ -3140,8 +3309,10 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                       )}
                     </div>
                   </div>
+                </Fragment>
                 );
-              })}
+              });
+            })()}
 
               <AnimatePresence>
                 {isTyping && activeThread && (

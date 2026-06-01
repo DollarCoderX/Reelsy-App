@@ -11,8 +11,8 @@ Reelsy Enhancements - Task List
 [ ] Placeholder rotation every 5s
 [ ] Music search relative URL and auto-selection from syntax
 [ ] Draft option save state & custom draft action text
-[ ] Implement Chat updates:
-[ ] Reelsy Official announcement banner
+[x] Implement Chat Date Dividers (grouped by day)
+[/] Implement Meta AI Group Chat (Chain) Unread Summary Card (IP-restricted to NG, US, CA)
 [ ] Interactive Help Center chat features
 [ ] Chat wallpaper picker with solids, Unsplash, and custom looping video
 [ ] Integrate Reelsy Bot V5 and group search

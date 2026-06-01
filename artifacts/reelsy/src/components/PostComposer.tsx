@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Image as ImageIcon, Video, AtSign, Hash, Globe,Repeat2, ChevronDown, Loader2, Share2, Pin, Plus, Music, Search, Play, Pause, MapPin, Sparkles, Check, Crown, Undo2, Redo2 } from "lucide-react";
+import { X, Image as ImageIcon, Video, AtSign, Hash, Globe,Repeat2, ChevronDown, Loader2, Share2, Pin, Plus, Music, Search, Play, Pause, MapPin, Sparkles, Check, Crown, Undo2, Redo2, MessageSquare, ArrowRight } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
 import { BOTS } from "@/data/bots";
 
@@ -40,7 +40,7 @@ const LIMITS = {
   free: 2,
   premium: 4,
   "premium+": 5,
-  gold: 5
+  verified: 5
 };
 
 const PLACEHOLDERS = [
@@ -53,9 +53,7 @@ const PLACEHOLDERS = [
 ];
 
 const POST_AI_CONTEXT = `
-You are Reelsy Post AI. Reelsy is a social app for private messaging, friends, short posts, drafts, music attachments, hashtags, mentions, and premium creator features.
-Premium and Premium+ users can use AI writing assistance. Keep replies focused on post ideas, captions, tone, clarity, engagement, and safe social content.
-Do not ask for or expose private account data, passwords, payment data, location coordinates, or messages. you can use #, @, 
+You are Reelsy AI Assistant. You are a friendly, smart, and helpful companion on Reelsy. You can chat about anything, answer questions, or help the user brainstorm, write, and refine social media posts. Keep replies concise, engaging, natural, and helpful. You can use hashtags and emojis.
 `;
 
 const pollinationsText = async (prompt: string) => {
@@ -369,11 +367,15 @@ ${input}`);
 
     if (!content.trim()) {
       setAiChatOpen(true);
-      setAiChatMessages([{ id: 1, from: "ai", text: "Share a topic or prompt and I'll help you craft a post idea." }]);
+      setAiChatMessages([{
+        id: 1,
+        from: "ai",
+        text: "Hey! I'm your Reelsy AI assistant. You can chat with me about anything, ask questions, or tell me what's on your mind. I can also help you write and refine post ideas!"
+      }]);
       return;
     }
 
-    // Show inline loading state and refine
+    // Show inline loading state and refine automatically
     setAiEditMode(true);
     setAiEditedContent("");
     try {
@@ -876,13 +878,17 @@ ${input}`);
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <input value={aiChatInput} onChange={(e) => setAiChatInput(e.target.value)} placeholder="Ask the AI for post ideas..." className="flex-1 px-3 py-2 rounded-2xl bg-secondary outline-none" />
-                <button onClick={() => sendAiChat(aiChatInput)} disabled={isAiChatLoading} className="px-3 py-2 rounded-2xl bg-foreground text-background disabled:opacity-50">Send</button>
+                <input value={aiChatInput} onChange={(e) => setAiChatInput(e.target.value)} placeholder="Message AI assistant..." className="flex-1 px-4 py-2.5 rounded-2xl bg-secondary outline-none text-[13px]" />
+                <motion.button whileTap={{ scale: 0.9 }} onClick={() => sendAiChat(aiChatInput)} disabled={isAiChatLoading} className="w-10 h-10 rounded-full bg-foreground text-background flex items-center justify-center disabled:opacity-50 shrink-0">
+                  <ArrowRight className="w-5 h-5" />
+                </motion.button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+
 
       <AnimatePresence>
         {aiNotice && (

@@ -52,7 +52,7 @@ const AuthOTP = () => {
           throw new Error("Invalid or expired code");
         }
         
-        setAppPhase("auth-profile");
+        setAppPhase("auth-password");
       } catch (err) {
         showToast("Invalid or expired code");
         setOtp(["", "", "", "", "", ""]);
