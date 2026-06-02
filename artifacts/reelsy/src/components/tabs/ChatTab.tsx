@@ -2351,16 +2351,19 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     setActiveId(null);
     onNavVisible?.(true);
 
-    // History entry so phone back returns to thread list UI
+    // Close thread: go back within chat (avoid breaking mobile nav stack)
     try {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", "chat");
       url.searchParams.delete("thread");
-      window.history.pushState({ tab: "chat", threadId: null }, "", url);
+
+      // Prefer replaceState so we don't create an extra history step.
+      window.history.replaceState({ tab: "chat", threadId: null }, "", url);
       localStorage.removeItem("reelsy_active_thread_id");
     } catch {}
 
     setReplyTo(null);
+
 
     setEditingId(null);
     setContextMsg(null);
