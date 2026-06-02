@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { Home, Search, MessageCircle, Flame, Settings } from "lucide-react";
 import HomeTab from "./tabs/HomeTab";
@@ -19,6 +18,8 @@ const TABS_MAP = {
   settings: { id: "settings", icon: Settings, label: "Settings" },
 };
 
+type UiState = { tab?: string; threadId?: string | null };
+
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState("home");
 
@@ -26,22 +27,23 @@ const MainApp = () => {
   const historyKey = "reelsy_ui_state";
   const isHistorySyncRef = useRef(false);
 
-  type UiState = { tab?: string; threadId?: string | null };
-
   const applyUiState = (s: UiState) => {
     if (s.tab && s.tab !== activeTab) {
       isHistorySyncRef.current = true;
       setActiveTab(s.tab);
       isHistorySyncRef.current = false;
     }
+
     // Thread restoration is handled via localStorage + ChatTab
     if (s.threadId !== undefined) {
       if (s.tab !== "chat") return;
-      localStorage.setItem("reelsy_active_thread_id", s.threadId ? String(s.threadId) : "");
+      localStorage.setItem(
+        "reelsy_active_thread_id",
+        s.threadId ? String(s.threadId) : ""
+      );
       if (!s.threadId) localStorage.removeItem("reelsy_active_thread_id");
     }
   };
-
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -60,9 +62,11 @@ const MainApp = () => {
         applyUiState(st);
         return;
       }
+
       const sp = new URL(window.location.href).searchParams;
       const nextTab = sp.get("tab") || "home";
       setActiveTab(nextTab);
+
       const nextThread = sp.get("thread");
       if (nextThread) localStorage.setItem("reelsy_active_thread_id", nextThread);
       else localStorage.removeItem("reelsy_active_thread_id");
@@ -78,13 +82,13 @@ const MainApp = () => {
     if (isHistorySyncRef.current) return;
 
     const threadId = localStorage.getItem("reelsy_active_thread_id");
+
     const state: UiState = {
       tab: activeTab,
       threadId: threadId ? threadId : null,
     };
 
     // Avoid spamming history for initial mount.
-    // If this is the first state, replace instead of push.
     const currentState = window.history.state as UiState | null;
     const sameTab = currentState && currentState.tab === activeTab;
     const method = sameTab ? "replaceState" : "pushState";
@@ -92,6 +96,7 @@ const MainApp = () => {
     const url = new URL(window.location.href);
     if (activeTab && activeTab !== "home") url.searchParams.set("tab", activeTab);
     else url.searchParams.delete("tab");
+
     if (threadId && activeTab === "chat") url.searchParams.set("thread", threadId);
     else url.searchParams.delete("thread");
 
@@ -155,27 +160,57 @@ const MainApp = () => {
 
   const renderTab = () => {
     switch (activeTab) {
-      case "home": return <HomeTab onNavVisible={onNavVisible} />;
-      case "search": return <SearchTab onOpenThread={(id: string) => { setActiveTab("chat"); localStorage.setItem("reelsy_active_thread_id", id); }} onGoHome={() => setActiveTab("home")} />;
-      case "chat": return <ChatTab onNavVisible={onNavVisible} />;
-      case "activity": return <ActivityTab />;
-      case "settings": return <SettingsTab onNavVisible={onNavVisible} />;
-      default: return <HomeTab onNavVisible={onNavVisible} />;
+      case "home":
+        return <HomeTab onNavVisible={onNavVisible} />;
+      case "search":
+        return (
+          <SearchTab
+            onOpenThread={(id: string) => {
+              setActiveTab("chat");
+              localStorage.setItem("reelsy_active_thread_id", id);
+
+              // ensure back returns to thread list UI
+              try {
+                const url = new URL(window.location.href);
+                url.searchParams.set("tab", "chat");
+                url.searchParams.set("thread", id);
+                window.history.pushState({ tab: "chat", threadId: id }, "", url);
+              } catch {}
+            }}
+            onGoHome={() => setActiveTab("home")}
+          />
+        );
+      case "chat":
+        return <ChatTab onNavVisible={onNavVisible} />;
+      case "activity":
+        return <ActivityTab />;
+      case "settings":
+        return <SettingsTab onNavVisible={onNavVisible} />;
+      default:
+        return <HomeTab onNavVisible={onNavVisible} />;
     }
   };
 
-  const avatarUrl = user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || "user"}&backgroundColor=b6e3f4`;
+  const avatarUrl =
+    user?.avatar ||
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || "user"}&backgroundColor=b6e3f4`;
 
   if (isMobile) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="absolute inset-0 bg-background text-foreground overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="absolute inset-0 bg-background text-foreground overflow-hidden"
+      >
         <AnimatePresence mode="wait">
-          <motion.div key={activeTab}
-            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-            className="absolute inset-0">
+            className="absolute inset-0"
+          >
             {renderTab()}
           </motion.div>
         </AnimatePresence>
@@ -183,11 +218,12 @@ const MainApp = () => {
         <AnimatePresence>
           {!hideNav && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              className="absolute bottom-0 left-0 right-0 flex flex-col items-center pb-5 pointer-events-none z-50">
-              
+              className="absolute bottom-0 left-0 right-0 flex flex-col items-center pb-5 pointer-events-none z-50"
+            >
               <AnimatePresence>
                 {showToast && (
                   <motion.div
@@ -201,13 +237,17 @@ const MainApp = () => {
                 )}
               </AnimatePresence>
 
-              <motion.div layout className="pointer-events-auto rounded-full px-2 py-2 flex items-center"
+              <motion.div
+                layout
+                className="pointer-events-auto rounded-full px-2 py-2 flex items-center"
                 style={{
                   background: "hsl(var(--background) / 0.84)",
                   backdropFilter: "blur(24px) saturate(180%)",
                   WebkitBackdropFilter: "blur(24px) saturate(180%)",
-                  boxShadow: "0 2px 32px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.06) inset",
-                }}>
+                  boxShadow:
+                    "0 2px 32px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.06) inset",
+                }}
+              >
                 <Reorder.Group
                   axis="x"
                   values={tabOrder}
@@ -242,17 +282,29 @@ const MainApp = () => {
                           transition={{ type: "spring", stiffness: 600, damping: 28 }}
                           aria-label={t(tab.label)}
                         >
-                          <Icon className="transition-colors animate-none" style={{
-                            width: 22, height: 22,
-                            color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                            fill: isActive ? "hsl(var(--foreground))" : "none",
-                            strokeWidth: isActive ? 2 : 1.7,
-                          }} />
+                          <Icon
+                            className="transition-colors animate-none"
+                            style={{
+                              width: 22,
+                              height: 22,
+                              color: isActive
+                                ? "hsl(var(--foreground))"
+                                : "hsl(var(--muted-foreground))",
+                              fill: isActive ? "hsl(var(--foreground))" : "none",
+                              strokeWidth: isActive ? 2 : 1.7,
+                            }}
+                          />
                           {isActive && (
-                            <motion.div layoutId="navDot"
+                            <motion.div
+                              layoutId="navDot"
                               className="absolute -bottom-0.5 rounded-full bg-foreground"
                               style={{ width: 4, height: 4 }}
-                              transition={{ type: "spring", stiffness: 500, damping: 30 }} />
+                              transition={{
+                                type: "spring",
+                                stiffness: 500,
+                                damping: 30,
+                              }}
+                            />
                           )}
                         </motion.button>
                       </Reorder.Item>
@@ -268,14 +320,23 @@ const MainApp = () => {
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      className="flex h-full bg-background text-foreground overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex h-full bg-background text-foreground overflow-hidden"
+    >
       <div className="w-[260px] shrink-0 border-r border-border flex flex-col py-6 px-4 gap-2 h-full">
         <div className="flex items-center gap-2.5 px-2 mb-6">
-          <img src={reelsyLogo} alt="Reelsy" className="w-9 h-9 rounded-xl object-cover shadow" />
+          <img
+            src={reelsyLogo}
+            alt="Reelsy"
+            className="w-9 h-9 rounded-xl object-cover shadow"
+          />
           <div>
             <p className="font-bold text-[16px] tracking-tight leading-none">Reelsy</p>
-            <p className="text-[10px] text-muted-foreground leading-none mt-0.5">by Uraincle</p>
+            <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+              by Uraincle
+            </p>
           </div>
         </div>
 
@@ -286,13 +347,16 @@ const MainApp = () => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
-              <motion.button key={tab.id}
+              <motion.button
+                key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 whileTap={{ scale: 0.97 }}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${isActive
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}>
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
+                  isActive
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
+              >
                 <Icon style={{ width: 18, height: 18, strokeWidth: isActive ? 2.2 : 1.8 }} />
                 <span className="font-semibold text-[13px]">{t(tab.label)}</span>
               </motion.button>
@@ -304,23 +368,48 @@ const MainApp = () => {
           <div className="flex items-center gap-2.5 px-2 py-2">
             <div className="w-9 h-9 rounded-full overflow-hidden bg-secondary shrink-0">
               {user?.avatar ? (
-                user.avatar.startsWith("<")
-                  ? <div dangerouslySetInnerHTML={{ __html: user.avatar }} className="w-full h-full" />
-                  : <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
+                user.avatar.startsWith("<") ? (
+                  <div
+                    dangerouslySetInnerHTML={{ __html: user.avatar }}
+                    className="w-full h-full"
+                  />
+                ) : (
+                  <img
+                    src={user.avatar}
+                    alt="avatar"
+                    className="w-full h-full object-cover"
+                  />
+                )
               ) : (
-                <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                <img
+                  src={avatarUrl}
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                />
               )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-[13px] truncate">{user?.nickname || "Your Name"}</p>
               <p className="text-[11px] text-muted-foreground truncate">{user?.username || "@username"}</p>
             </div>
-            <div className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${tier === "free" ? "bg-secondary text-muted-foreground"
-              : tier === "premium" ? "bg-amber-500/10 text-amber-600"
-                : tier === "premium+" ? "bg-violet-500/10 text-violet-600"
-                  : "bg-yellow-500/10 text-yellow-600"
-              }`}>
-              {tier === "free" ? "Free" : tier === "premium" ? "Premium" : tier === "premium+" ? "Premium+" : "Gold"}
+            <div
+              className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                tier === "free"
+                  ? "bg-secondary text-muted-foreground"
+                  : tier === "premium"
+                    ? "bg-amber-500/10 text-amber-600"
+                    : tier === "premium+"
+                      ? "bg-violet-500/10 text-violet-600"
+                      : "bg-yellow-500/10 text-yellow-600"
+              }`}
+            >
+              {tier === "free"
+                ? "Free"
+                : tier === "premium"
+                  ? "Premium"
+                  : tier === "premium+"
+                    ? "Premium+"
+                    : "Gold"}
             </div>
           </div>
         </div>
@@ -328,11 +417,14 @@ const MainApp = () => {
 
       <div className="flex-1 relative overflow-hidden">
         <AnimatePresence mode="wait">
-          <motion.div key={activeTab}
-            initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -8 }}
             transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-            className="absolute inset-0">
+            className="absolute inset-0"
+          >
             {renderTab()}
           </motion.div>
         </AnimatePresence>
@@ -342,3 +434,4 @@ const MainApp = () => {
 };
 
 export default MainApp;
+
