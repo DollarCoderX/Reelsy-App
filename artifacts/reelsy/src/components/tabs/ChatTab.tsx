@@ -2349,6 +2349,9 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     setMetaAiSummary(null);
     setShowMetaAiBox(false);
     setActiveId(null);
+
+    // On mobile, ensure navigator bar becomes visible again.
+    // Also keep chat tab showing the thread list.
     onNavVisible?.(true);
 
     // Close thread: go back within chat (avoid breaking mobile nav stack)
@@ -2363,6 +2366,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     } catch {}
 
     setReplyTo(null);
+
 
 
     setEditingId(null);
