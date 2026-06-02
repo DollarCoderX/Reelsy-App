@@ -4,7 +4,7 @@ import { useIPRestriction, IPRestrictionHook } from "@/hooks/useIPRestriction";
 export type AppPhase =
   | "splash" | "welcome" | "auth-tos" | "auth-email"
   | "auth-otp" | "auth-password" | "auth-profile" | "auth-interests"
-  | "auth-friends" | "auth-permissions" | "main";
+  | "auth-friends" | "auth-permissions" | "account-suspended" | "banned" | "main";
 
 export type Theme = "light" | "dark";
 export type Tier = "free" | "premium" | "premium+" | "gold";
@@ -22,6 +22,14 @@ export interface UserProfile {
   friendPolicy?: "open" | "request-only";
   coverImage?: string;
   verified?: boolean; // Verified badge for businesses (not a tier, just a flag)
+  isSuspended?: boolean;
+  suspensionReason?: string;
+  suspensionDetails?: string;
+  isBanned?: boolean;
+  banReason?: string;
+  bannedAt?: string;
+  bannedUntil?: string;
+  supabaseId?: string; // For real-time polling
 }
 
 export interface ChatWallpaper {

@@ -2,14 +2,17 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Load .env from workspace root
+// Load .env from artifacts/api-server directory
 // Bundled file is at: artifacts/api-server/dist/index.mjs
-// .env is at: workspace root
-// So we need to go up 3 levels: dist -> api-server -> artifacts -> root
+// .env is at: artifacts/api-server/.env
+// From dist, go up 1 level to api-server
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const envPath = path.resolve(__dirname, '../../../.env');
+const envPath = path.resolve(__dirname, '../.env');
+console.log('Loading .env from:', envPath);
 dotenv.config({ path: envPath });
+console.log('SUPABASE_URL:', process.env.SUPABASE_URL ? '✅ Set' : '❌ Not set');
+console.log('SUPABASE_SERVICE_KEY:', process.env.SUPABASE_SERVICE_KEY ? '✅ Set' : '❌ Not set');
 
 import app from "./app";
 import { logger } from "./lib/logger";

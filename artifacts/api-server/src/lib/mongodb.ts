@@ -15,6 +15,18 @@ export interface ReelsyUser {
   supabaseId?: string; // Supabase auth user ID (for Google OAuth)
   authProvider?: 'email' | 'google'; // Authentication method
   tier?: 'free' | 'premium' | 'premium+' | 'gold' | 'verified';
+  // Suspension & Security
+  isSuspended?: boolean;
+  suspensionReason?: string;
+  suspensionDetails?: string; // Full explanation for user
+  suspendedAt?: Date;
+  strikeCount?: number; // Track suspicious activities (3 strikes = ban)
+  strikes?: Array<{ type: string; timestamp: Date; details: string }>; // Strike log
+  // Ban information (via Supabase Admin API)
+  isBanned?: boolean; // Explicitly banned by admin
+  banReason?: string; // Why they were banned
+  bannedAt?: Date; // When they were banned
+  bannedUntil?: Date; // When ban expires (null = permanent)
   createdAt: Date;
   updatedAt: Date;
 }

@@ -5,6 +5,7 @@ import { AppProvider, useAppContext } from "@/context/AppContext";
 import { FeatureIntroProvider } from "@/context/FeatureIntroContext";
 import { AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSupabaseStatusPolling } from "@/hooks/useSupabaseStatusPolling";
 import { useEffect } from "react";
 
 import SplashScreen from "@/components/SplashScreen";
@@ -17,6 +18,8 @@ import AuthProfile from "@/components/AuthProfile";
 import AuthInterests from "@/components/AuthInterests";
 import AuthFriendSuggestions from "@/components/AuthFriendSuggestions";
 import AuthPermissions from "@/components/AuthPermissions";
+import AccountSuspended from "@/components/AccountSuspended";
+import BannedUser from "@/components/BannedUser";
 import MainApp from "@/components/MainApp";
 import { ShieldAlert, Globe2 } from "lucide-react";
 import { getSession } from "@/lib/supabase-client";
@@ -27,12 +30,22 @@ function AppContent() {
   const { appPhase, setAppPhase, setUser, user } = useAppContext();
   const isMobile = useIsMobile();
 
+  // Poll Supabase status every 10 seconds to detect bans/disabling
+  useSupabaseStatusPolling();
+
   // Check for persisted user on mount
   useEffect(() => {
     const checkAuth = async () => {
-      // If user already in context, skip
+      // If user already in context, check for ban/suspension
       if (user) {
-        setAppPhase('main');
+        // Check if account is banned (highest priority)
+        if (user.isBanned) {
+          setAppPhase('banned');
+        } else if (user.isSuspended) {
+          setAppPhase('account-suspended');
+        } else {
+          setAppPhase('main');
+        }
         return;
       }
 
@@ -40,8 +53,17 @@ function AppContent() {
       const storedUser = localStorage.getItem('reelsy_user');
       if (storedUser) {
         try {
-          setUser(JSON.parse(storedUser));
-          setAppPhase('main');
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          
+          // Check if account is banned (highest priority)
+          if (parsedUser.isBanned) {
+            setAppPhase('banned');
+          } else if (parsedUser.isSuspended) {
+            setAppPhase('account-suspended');
+          } else {
+            setAppPhase('main');
+          }
           return;
         } catch (e) {
           console.error('Failed to restore user:', e);
@@ -65,6 +87,11 @@ function AppContent() {
             displayName: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'User',
             birthday: supabaseUser.user_metadata?.birthday || new Date().toISOString().split('T')[0],
             location: supabaseUser.user_metadata?.location || '',
+            profileImage:
+              supabaseUser.user_metadata?.avatar_url ||
+              supabaseUser.user_metadata?.picture ||
+              supabaseUser.user_metadata?.profile_image ||
+              '',
           }),
         });
 
@@ -76,13 +103,37 @@ function AppContent() {
 
         const result = await response.json();
         localStorage.setItem('authToken', result.token);
-        setUser({
+        if (result.user.supabaseId) {
+          localStorage.setItem('supabaseId', result.user.supabaseId);
+        }
+        
+        const newUser = {
           username: result.user.username,
           nickname: result.user.displayName,
           age: result.user.age,
           email: result.user.email,
-        });
-        setAppPhase('main');
+          avatar: result.user.profileImage || undefined,
+          supabaseId: result.user.supabaseId,
+          isBanned: result.user.isBanned,
+          banReason: result.user.banReason,
+          bannedAt: result.user.bannedAt,
+          bannedUntil: result.user.bannedUntil,
+          isSuspended: result.user.isSuspended,
+          suspensionReason: result.user.suspensionReason,
+          suspensionDetails: result.user.suspensionDetails,
+        };
+        
+        setUser(newUser);
+        
+        // Check if account is banned (highest priority)
+        if (result.user.isBanned) {
+          setAppPhase('banned');
+        } else if (result.user.isSuspended) {
+          setAppPhase('account-suspended');
+        } else {
+          // Route to interests selection after Google OAuth
+          setAppPhase('auth-interests');
+        }
       } catch (err) {
         console.error('OAuth callback error:', err);
       }
@@ -105,6 +156,8 @@ function AppContent() {
       {appPhase === "auth-interests" && <AuthInterests key="auth-interests" />}
       {appPhase === "auth-friends" && <AuthFriendSuggestions key="auth-friends" />}
       {appPhase === "auth-permissions" && <AuthPermissions key="auth-permissions" />}
+      {appPhase === "account-suspended" && <AccountSuspended key="account-suspended" username={user?.username || ''} email={user?.email || ''} />}
+      {appPhase === "banned" && <BannedUser key="banned" />}
     </AnimatePresence>
   );
 

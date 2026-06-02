@@ -37,6 +37,11 @@ const AuthCallback = () => {
             displayName: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'User',
             birthday: supabaseUser.user_metadata?.birthday || new Date().toISOString().split('T')[0],
             location: supabaseUser.user_metadata?.location || '',
+            profileImage:
+              supabaseUser.user_metadata?.avatar_url ||
+              supabaseUser.user_metadata?.picture ||
+              supabaseUser.user_metadata?.profile_image ||
+              '',
           }),
         });
 
@@ -47,19 +52,27 @@ const AuthCallback = () => {
 
         const result = await response.json();
 
-        // Store JWT token
+        // Store JWT token and Supabase ID for later polling
         localStorage.setItem('authToken', result.token);
+        if (result.user.supabaseId) {
+          localStorage.setItem('supabaseId', result.user.supabaseId);
+        }
 
-        // Update app context with user data
+        // Update app context with user data (including Supabase ID for polling)
         setUser({
           username: result.user.username,
           nickname: result.user.displayName,
-          age: result.user.age,
+          age: result.user.age || 0, // Age from Google or 0 if not available
           email: result.user.email,
+          avatar: result.user.profileImage || undefined,
+          supabaseId: result.user.supabaseId,
+          isSuspended: result.user.isSuspended || false,
+          suspensionReason: result.user.suspensionReason,
+          suspensionDetails: result.user.suspensionDetails,
         });
 
-        // Move to main app
-        setAppPhase('main');
+        // Route to interests selection after Google OAuth (not directly to main)
+        setAppPhase('auth-interests');
       } catch (err) {
         console.error('Auth callback error:', err);
         toast({

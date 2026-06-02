@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-
+import { useToast } from "@/hooks/use-toast";
 
 import { AppLanguage, useAppContext } from "@/context/AppContext";
 import {
@@ -456,13 +456,47 @@ const VirtualNumberModal = ({ onClose, onSave }: { onClose: () => void; onSave: 
 // ---- Edit Profile Sheet ----
 const EditProfileSheet = ({ onClose }: { onClose: () => void }) => {
   const { user, setUser } = useAppContext();
+  const { toast } = useToast();
   const [nickname, setNickname] = useState(user?.nickname || "");
   const [bio, setBio] = useState(user?.bio || "");
   const [email, setEmail] = useState(user?.email || "");
 
-  const handleSave = () => {
-    if (user) setUser({ ...user, nickname, bio, email });
-    onClose();
+  const handleSave = async () => {
+    if (!user) {
+      onClose();
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: user.username,
+          displayName: nickname,
+          profileImage: user.avatar,
+          age: user.age,
+          interests: user.interests,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Unable to update profile');
+      }
+
+      setUser({ ...user, nickname, bio, email });
+      toast({ title: 'Profile saved', description: 'Your name has been updated.', variant: 'default' });
+    } catch (error) {
+      console.error('Profile update failed', error);
+      toast({
+        title: 'Save failed',
+        description: error instanceof Error ? error.message : 'Could not save your profile.',
+        variant: 'destructive',
+      });
+    } finally {
+      onClose();
+    }
   };
 
   return (
@@ -482,9 +516,9 @@ const EditProfileSheet = ({ onClose }: { onClose: () => void }) => {
       </div>
       <div className="flex-1 px-5 pt-2 space-y-3">
         <div>
-          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-1.5 px-1">Display Name</p>
+          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-1.5 px-1">Real Name</p>
           <input value={nickname} onChange={(e) => setNickname(e.target.value)}
-            placeholder="Your name" style={{ fontSize: 16 }}
+            placeholder="Your real name" style={{ fontSize: 16 }}
             className="w-full h-[52px] px-4 bg-secondary rounded-2xl font-medium outline-none" />
         </div>
 
