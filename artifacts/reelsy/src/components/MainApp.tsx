@@ -46,36 +46,34 @@ const MainApp = () => {
   };
 
   useEffect(() => {
+    // Initialize from current URL params.
     const url = new URL(window.location.href);
     const tab = (url.searchParams.get("tab") || undefined) as string | undefined;
     const threadId = url.searchParams.get("thread") || null;
 
-    if (tab) {
-      setActiveTab(tab);
-      if (threadId) localStorage.setItem("reelsy_active_thread_id", threadId);
-    }
+    if (tab) setActiveTab(tab);
+    if (threadId) localStorage.setItem("reelsy_active_thread_id", threadId);
 
-    const onPop = (e: PopStateEvent) => {
-      const st = (e.state || {}) as UiState;
-      // Prefer state; fallback to query params.
-      if (st && (st.tab || st.threadId !== undefined)) {
-        applyUiState(st);
-        return;
-      }
-
+    const readFromUrl = () => {
       const sp = new URL(window.location.href).searchParams;
       const nextTab = sp.get("tab") || "home";
-      setActiveTab(nextTab);
-
       const nextThread = sp.get("thread");
+      setActiveTab(nextTab);
       if (nextThread) localStorage.setItem("reelsy_active_thread_id", nextThread);
       else localStorage.removeItem("reelsy_active_thread_id");
+    };
+
+    const onPop = () => {
+      // When back is pressed, just restore based on URL params/state.
+      // This avoids partial updates that can leave the UI stuck.
+      readFromUrl();
     };
 
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   useEffect(() => {
     // Push a history entry whenever the visible tab changes.
