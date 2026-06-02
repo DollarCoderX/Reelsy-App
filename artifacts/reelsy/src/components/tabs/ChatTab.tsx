@@ -24,6 +24,9 @@ import {
   readFriendBotIds,
 } from "@/data/bots";
 import { useAppContext } from "@/context/AppContext";
+import { useFeatureIntro } from "@/context/FeatureIntroContext";
+import { hasSeenFeatureIntro, markFeatureIntroSeen } from "@/lib/featureIntro";
+
 
 interface ChatTabProps { onNavVisible?: (v: boolean) => void; }
 
@@ -1713,11 +1716,12 @@ const QuickRepliesMenu = ({
 
 
 // Media Editor Component for image/video with text overlay
-const MediaEditor = ({ media, tier, onSend, onClose }: {
+const MediaEditor = ({ media, tier, onSend, onClose, requestFeatureIntro }: {
   media: { type: string; preview?: string; file?: File };
   tier: string;
   onSend: (text: string, viewOnce: boolean) => void;
   onClose: () => void;
+  requestFeatureIntro: (key: string, title: string, description: string, action: () => void) => void;
 }) => {
   const [caption, setCaption] = useState("");
   const [viewOnce, setViewOnce] = useState(false);
@@ -1772,7 +1776,12 @@ const MediaEditor = ({ media, tier, onSend, onClose }: {
             whileTap={{ scale: 0.98 }}
             onClick={() => {
               if (canUseViewOnce) {
-                setViewOnce(!viewOnce);
+                requestFeatureIntro(
+                  "chat_view_once",
+                  "View Once",
+                  "Send messages that can only be viewed once. Perfect for private moments.",
+                  () => setViewOnce(!viewOnce)
+                );
               } else {
                 setShowUpgradePrompt(true);
               }
@@ -2082,6 +2091,8 @@ const BlockConfirm = ({ name, onBlock, onClose }: { name: string; onBlock: () =>
 // ---- Main ChatTab ----
 const ChatTab = ({ onNavVisible }: ChatTabProps) => {
   const { reelsyNumber, tier, t, ip } = useAppContext();
+  const { requestFeatureIntro } = useFeatureIntro();
+
   const [friendBotIds, setFriendBotIds] = useState<string[]>(readFriendBotIds);
 
   const buildInitialThreads = (): ChatThread[] => {
@@ -3134,7 +3145,12 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                           </div>
                         ) : (
                           <button
-                            onClick={() => setViewOnceMedia(msg)}
+                      onClick={() => requestFeatureIntro(
+                            `chat_viewonce_${msg.mediaType || "media"}`,
+                            "View Once",
+                            "View Once makes your photo/video disappear after it’s opened.",
+                            () => setViewOnceMedia(msg)
+                          )}
                             className="flex items-center gap-2.5 px-4 py-2.5 bg-violet-600/10 hover:bg-violet-600/20 text-violet-500 text-[12px] font-bold rounded-xl transition-all"
                           >
                             <Eye className="w-4 h-4 animate-pulse" /> View Once {msg.mediaType === "video" ? "Video" : "Photo"}
@@ -3473,7 +3489,12 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                   </motion.button>
                 ) : (
                   <motion.button
-                    onPointerDown={handleMicPress}
+                    onPointerDown={() => requestFeatureIntro(
+                      "chat_voice_message",
+                      "Voice Messages",
+                      "Hold down the microphone to record a voice message.",
+                      () => handleMicPress()
+                    )}
                     onPointerUp={handleMicRelease}
                     onPointerLeave={handleMicRelease}
                     whileTap={{ scale: 0.88 }}
@@ -3491,26 +3512,71 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                       onClose={() => setShowAttachmentMenu(false)}
                       onItemClick={(key) => {
                         if (key === "photo_video") {
-                          fileInputRef.current?.click();
+                          requestFeatureIntro(
+                            "chat_send_photo_video",
+                            "Photos & Videos",
+                            "Send a photo or video in chat.",
+                            () => fileInputRef.current?.click()
+                          );
                         } else if (key === "document") {
-                          docInputRef.current?.click();
+                          requestFeatureIntro(
+                            "chat_send_document",
+                            "Documents",
+                            "Share documents and files with your contacts.",
+                            () => docInputRef.current?.click()
+                          );
                         } else if (key === "camera") {
-                          setShowCameraCapture(true);
+                          requestFeatureIntro(
+                            "chat_camera_capture",
+                            "Camera",
+                            "Capture a photo or record a video to send in chat.",
+                            () => setShowCameraCapture(true)
+                          );
                         } else if (key === "audio") {
                           handleMicPress();
                           setTimeout(handleMicRelease, 3000);
                         } else if (key === "poll") {
-                          setShowPollCreator(true);
+                          requestFeatureIntro(
+                            "chat_send_poll",
+                            "Polls",
+                            "Create a poll to ask your contacts questions and get their feedback.",
+                            () => setShowPollCreator(true)
+                          );
                         } else if (key === "event") {
-                          setShowEventCreator(true);
+                          requestFeatureIntro(
+                            "chat_send_event",
+                            "Events",
+                            "Share an event with your contacts and keep everyone informed.",
+                            () => setShowEventCreator(true)
+                          );
                         } else if (key === "contact") {
-                          setShowContactSelector(true);
+                          requestFeatureIntro(
+                            "chat_send_contact",
+                            "Share Contact",
+                            "Share a contact with your chat members.",
+                            () => setShowContactSelector(true)
+                          );
                         } else if (key === "catalogue") {
-                          setShowCatalogueSelector(true);
+                          requestFeatureIntro(
+                            "chat_send_catalogue",
+                            "Share Catalogue",
+                            "Share a product catalogue with your contacts.",
+                            () => setShowCatalogueSelector(true)
+                          );
                         } else if (key === "sticker") {
-                          setShowEmojiPicker(true);
+                          requestFeatureIntro(
+                            "chat_send_sticker",
+                            "Stickers & Emojis",
+                            "Send fun stickers and emojis to make your messages more expressive.",
+                            () => setShowEmojiPicker(true)
+                          );
                         } else if (key === "quick") {
-                          setShowQuickReplies((v) => !v);
+                          requestFeatureIntro(
+                            "chat_quick_replies",
+                            "Quick Replies",
+                            "Use pre-written replies to respond quickly to messages.",
+                            () => setShowQuickReplies((v) => !v)
+                          );
                         }
                       }}
                     />
@@ -3739,6 +3805,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                     setMediaToEdit(null);
                   }}
                   onClose={() => setMediaToEdit(null)}
+                  requestFeatureIntro={requestFeatureIntro}
                 />
               )}
             </AnimatePresence>
@@ -3805,7 +3872,12 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                     <motion.div initial={{ opacity: 0, scale: 0.92, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92 }}
                       className="absolute right-0 top-12 w-52 overflow-hidden rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl">
                       {[
-                        { icon: Download, label: "Save to gallery", action: () => {} },
+                        { icon: Download, label: "Save to gallery", action: () => requestFeatureIntro(
+                          `chat_save_${(contextMsg as any)?.mediaType || "msg"}`,
+                          "Save",
+                          "Save a photo or video to your gallery.",
+                          () => {}
+                        ) },
                         { icon: Share2, label: "Share", action: () => navigator.share?.({ title: "Reelsy image", url: activeLightboxImage }).catch(() => {}) },
                         { icon: ForwardIcon, label: "Forward", action: () => setForwardMsg({ id: Date.now(), fromName: "You", content: "", time: "now", isMine: true, mediaType: "image", mediaUrl: activeLightboxImage }) },
                         { icon: Copy, label: "Copy link", action: () => navigator.clipboard?.writeText(activeLightboxImage).catch(() => {}) },
@@ -3881,7 +3953,12 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
               {[
                 { icon: Reply, label: "Reply", action: () => { setReplyTo(contextMsg); setContextMsg(null); } },
                 { icon: Copy, label: "Copy", action: () => { navigator.clipboard?.writeText(contextMsg.content).catch(() => { }); setContextMsg(null); } },
-                { icon: ForwardIcon, label: "Forward", action: () => { setForwardMsg(contextMsg); setContextMsg(null); } },
+                { icon: ForwardIcon, label: "Forward", action: () => { requestFeatureIntro(
+                    `chat_forward_${contextMsg.mediaType || "msg"}`,
+                    "Reshare",
+                    "Reshare a message to another chat.",
+                    () => { setForwardMsg(contextMsg); setContextMsg(null); }
+                  ); } },
                 ...(contextMsg.isMine ? [
                   { icon: Pencil, label: "Edit", action: () => { setEditingId(contextMsg.id); setEditText(contextMsg.content); setContextMsg(null); } },
                   { icon: Trash2, label: "Delete", action: () => deleteMessage(contextMsg.id), danger: true },
@@ -3909,3 +3986,5 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
 };
 
 export default ChatTab;
+
+

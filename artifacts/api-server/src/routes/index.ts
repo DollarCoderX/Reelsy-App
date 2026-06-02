@@ -3,11 +3,13 @@ import healthRouter from "./health";
 import authRouter from "./auth";
 import verificationRouter from "./verification";
 import mediaRouter from "./media";
+import engagementRouter from "./engagement";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
+router.use("/engagement", engagementRouter);
 router.use(verificationRouter);
 router.use(mediaRouter);
 

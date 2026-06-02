@@ -22,7 +22,9 @@ import type { Bot, BotPost } from "@/data/bots";
 import UserProfile from "@/components/UserProfile";
 import PostComposer from "@/components/PostComposer";
 import { useAppContext } from "@/context/AppContext";
+import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import MediaViewer from "@/components/ui/MediaViewer";
+import { useEngagement } from "@/hooks/useEngagement";
 
 interface HomeTabProps { onNavVisible?: (v: boolean) => void; }
 
@@ -621,7 +623,19 @@ const PostCard = ({
   onAdOpen?: (post: PostData) => void;
 }) => {
   const { user } = useAppContext();
-  const [liked, setLiked] = useState(false);
+  const { requestFeatureIntro } = useFeatureIntro();
+  
+  // Use real engagement hook
+  const { counts, isLiked, isSaved, toggleLike, save, comment: addComment } = useEngagement({
+    postId: post.id,
+    initialCounts: {
+      likes: post.likes || 0,
+      comments: post.replies || 0,
+      reshares: post.reposts || 0,
+      saves: 0,
+    },
+  });
+  
   const [bookmarked, setBookmarked] = useState(() => {
     try {
       const saved = localStorage.getItem("reelsy_saved_posts");
@@ -652,6 +666,19 @@ const PostCard = ({
       localStorage.setItem("reelsy_saved_posts", JSON.stringify(list));
     } catch (e) {}
   };
+
+  const handleReshare = async () => {
+    try {
+      await onRepost(post);
+      showToast("Post reshared!");
+    } catch (err) {
+      showToast("Failed to reshare");
+    }
+  };
+
+  // Deprecated - use engagement hook instead
+  const liked = isLiked;
+  const setLiked = () => toggleLike();
 
   const [showOptions, setShowOptions] = useState(false);
   const [burst, setBurst] = useState<{ x: number; y: number } | null>(null);
@@ -723,8 +750,8 @@ const PostCard = ({
     } else if (tapCount.current === 2) {
       clearTimeout(tapTimer.current!);
       tapCount.current = 0;
-      if (!liked) {
-        setLiked(true);
+      if (!isLiked) {
+        toggleLike();
         setBurst({ x: e.clientX, y: e.clientY });
         setTimeout(() => setBurst(null), 600);
       }
@@ -1163,7 +1190,7 @@ const PostCard = ({
               ))}
             </div>
             <span className="text-[11px] text-muted-foreground">
-              Liked by <span className="font-semibold text-foreground">{BOTS[0].name.split(" ")[0]}</span> and {formatCount(post.likes + (liked ? 1 : 0) + 2)} others
+              Liked by <span className="font-semibold text-foreground">{BOTS[0].name.split(" ")[0]}</span> and {formatCount(post.likes + (isLiked ? 1 : 0) + 2)} others
             </span>
           </div>
           )}
@@ -1175,17 +1202,17 @@ const PostCard = ({
                   whileTap={{ scale: 0.75 }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setLiked(!liked);
+                    toggleLike();
                   }}
-                  className={`flex items-center gap-1 p-1 ${liked ? "text-rose-500" : "text-muted-foreground"}`}
+                  className={`flex items-center gap-1 p-1 ${isLiked ? "text-rose-500" : "text-muted-foreground"}`}
                 >
                   <motion.div
-                    animate={liked ? { scale: [1, 1.45, 1] } : {}}
+                    animate={isLiked ? { scale: [1, 1.45, 1] } : {}}
                     transition={{ type: "spring", stiffness: 500, damping: 20 }}
                   >
-                    <Heart className="w-4 h-4" strokeWidth={1.7} fill={liked ? "currentColor" : "none"} />
+                    <Heart className="w-4 h-4" strokeWidth={1.7} fill={isLiked ? "currentColor" : "none"} />
                   </motion.div>
-                  <span className="text-[11px] font-medium">{post.likes + (liked ? 1 : 0)}</span>
+                  <span className="text-[11px] font-medium">{counts.likes}</span>
                 </motion.button>
 
 
@@ -1200,7 +1227,12 @@ const PostCard = ({
                   <BarChart3 className="w-4 h-4" strokeWidth={1.7} />
                   <span className="text-[11px] font-medium">Review</span>
                 </motion.button>
-                   <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); toggleBookmark(); }}
+                   <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); requestFeatureIntro(
+                  "home_save_ad",
+                  "Save Posts",
+                  "Bookmark posts to read later. Build your personal collection!",
+                  () => toggleBookmark()
+                ); }}
                   className={`p-1 ${bookmarked ? "text-foreground" : "text-muted-foreground"}`}>
                   <Bookmark className="w-4 h-4" strokeWidth={1.7} fill={bookmarked ? "currentColor" : "none"} />
                 </motion.button>
@@ -1212,23 +1244,23 @@ const PostCard = ({
                 <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); onComment(post); }}
                   className="flex items-center gap-1 text-muted-foreground p-1">
                   <MessageCircle className="w-4 h-4" strokeWidth={1.7} />
-                  <span className="text-[11px] font-medium">{post.replies}</span>
+                  <span className="text-[11px] font-medium">{counts.comments}</span>
                 </motion.button>
-                <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); onRepost(post); }}
+                <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); handleReshare(); }}
                   className="flex items-center gap-1 text-muted-foreground p-1">
                   <Repeat2 className="w-4 h-4" strokeWidth={1.7} />
-                  <span className="text-[11px] font-medium">{post.reposts}</span>
+                  <span className="text-[11px] font-medium">{counts.reshares}</span>
                 </motion.button>
-                <motion.button whileTap={{ scale: 0.75 }} onClick={(e) => { e.stopPropagation(); setLiked(!liked); }}
-                  className={`flex items-center gap-1 p-1 ${liked ? "text-rose-500" : "text-muted-foreground"}`}>
-                  <motion.div animate={liked ? { scale: [1, 1.45, 1] } : {}} transition={{ type: "spring", stiffness: 500, damping: 20 }}>
-                    <Heart className="w-4 h-4" strokeWidth={1.7} fill={liked ? "currentColor" : "none"} />
+                <motion.button whileTap={{ scale: 0.75 }} onClick={(e) => { e.stopPropagation(); toggleLike(); }}
+                  className={`flex items-center gap-1 p-1 ${isLiked ? "text-rose-500" : "text-muted-foreground"}`}>
+                  <motion.div animate={isLiked ? { scale: [1, 1.45, 1] } : {}} transition={{ type: "spring", stiffness: 500, damping: 20 }}>
+                    <Heart className="w-4 h-4" strokeWidth={1.7} fill={isLiked ? "currentColor" : "none"} />
                   </motion.div>
-                  <span className="text-[11px] font-medium">{post.likes + (liked ? 1 : 0)}</span>
+                  <span className="text-[11px] font-medium">{counts.likes}</span>
                 </motion.button>
-                <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); toggleBookmark(); }}
-                  className={`p-1 ${bookmarked ? "text-foreground" : "text-muted-foreground"}`}>
-                  <Bookmark className="w-4 h-4" strokeWidth={1.7} fill={bookmarked ? "currentColor" : "none"} />
+                <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); save(); }}
+                  className={`p-1 ${isSaved ? "text-foreground" : "text-muted-foreground"}`}>
+                  <Bookmark className="w-4 h-4" strokeWidth={1.7} fill={isSaved ? "currentColor" : "none"} />
                 </motion.button>
               </div>
               <div className="flex items-center gap-1 text-muted-foreground">
@@ -1249,6 +1281,7 @@ const PostCard = ({
 
 const HomeTab = ({ onNavVisible }: HomeTabProps) => {
   const { user } = useAppContext();
+  const { requestFeatureIntro } = useFeatureIntro();
   const [feedType, setFeedType] = useState<"foryou" | "following">("foryou");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [newPostsPill, setNewPostsPill] = useState(false);
@@ -1898,7 +1931,12 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
       </div>
 
       {/* FAB */}
-      <motion.button whileTap={{ scale: 0.86 }} onClick={() => openComposer()}
+      <motion.button whileTap={{ scale: 0.86 }} onClick={() => requestFeatureIntro(
+        "home_post_button",
+        "Create a Post",
+        "Share your thoughts, photos, and videos with the world! Tap the + button to start creating.",
+        () => openComposer()
+      )}
         className="absolute bottom-20 right-4 w-12 h-12 rounded-full bg-foreground text-background flex items-center justify-center shadow-xl z-20">
         <Plus className="w-4 h-4" strokeWidth={2.5} />
       </motion.button>

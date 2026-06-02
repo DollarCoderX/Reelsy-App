@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Image as ImageIcon, Video, AtSign, Hash, Globe,Repeat2, ChevronDown, Loader2, Share2, Pin, Plus, Music, Search, Play, Pause, MapPin, Sparkles, Check, Crown, Undo2, Redo2, MessageSquare, ArrowRight } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
+import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import { BOTS } from "@/data/bots";
 
 type ComposerPost = {
@@ -79,6 +80,7 @@ const PreviewContent = ({ text }: { text: string }) => {
 
 const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
   const { user, tier, draftFirstTimeSeen, setDraftFirstTimeSeen } = useAppContext();
+  const { requestFeatureIntro } = useFeatureIntro();
   const [content, setContent] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
@@ -302,7 +304,21 @@ const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
       return;
     }
 
-    submitPost();
+    if (resharePost) {
+      requestFeatureIntro(
+        "post_composer_reshare",
+        "Reshare Post",
+        "Share another post with your audience. Let them know what resonates with you!",
+        () => submitPost()
+      );
+    } else {
+      requestFeatureIntro(
+        "post_composer_post",
+        "Create a Post",
+        "Share your thoughts, photos, and videos with the world! Your post will be visible to your selected audience.",
+        () => submitPost()
+      );
+    }
   };
 
   // AI refinement for social media posts with a local fallback.
@@ -709,11 +725,21 @@ ${input}`);
       {/* Toolbar */}
       <div className="shrink-0 border-t border-secondary/50 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-0.5">
-          <motion.button whileTap={{ scale: 0.85 }} onClick={() => imageRef.current?.click()}
+          <motion.button whileTap={{ scale: 0.85 }} onClick={() => requestFeatureIntro(
+            "post_composer_photo",
+            "Add Photos",
+            "Select photos from your device to include in your post.",
+            () => imageRef.current?.click()
+          )}
             className="p-2.5 rounded-full hover:bg-secondary transition-colors">
             <ImageIcon className="w-[18px] h-[18px] text-foreground" strokeWidth={1.8} />
           </motion.button>
-          <motion.button whileTap={{ scale: 0.85 }} onClick={() => videoRef.current?.click()}
+          <motion.button whileTap={{ scale: 0.85 }} onClick={() => requestFeatureIntro(
+            "post_composer_video",
+            "Add Videos",
+            "Select videos from your device to include in your post.",
+            () => videoRef.current?.click()
+          )}
             className="p-2.5 rounded-full hover:bg-secondary transition-colors">
             <Video className="w-[18px] h-[18px] text-foreground" strokeWidth={1.8} />
           </motion.button>

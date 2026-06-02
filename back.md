@@ -1,0 +1,3 @@
+so next we are going deep upate env to have this monogdb, supabase keys, when finish auth this are the list of stuff going to monogdb (useremail, email password(created in email registration), @username, displayname, profile image(image they put or avatarr they selected), age, what they are into(personalize)) that what is been saved to monogb while for supabase we only save username, displayname and tier.
+while in auth if they use continue to google we will use supabase so if possible u can do this what we want to collect from there google is name, birthday or age, location. then after that they are also required to create a password and confirm it.
+so create and update the auth backend and update my env for the keys i will put

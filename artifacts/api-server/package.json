@@ -7,9 +7,11 @@
     "dev": "pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
+    "migrate": "node ./src/migrations/init-db.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "cookie-parser": "^1.4.7",
@@ -17,6 +19,7 @@
     "dotenv": "^16.4.7",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "mongodb": "^6.3.0",
     "nodemailer": "^8.0.7",
     "pino": "^9",
     "pino-http": "^10"

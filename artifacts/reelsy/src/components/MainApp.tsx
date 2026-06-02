@@ -6,8 +6,10 @@ import SearchTab from "./tabs/SearchTab";
 import ChatTab from "./tabs/ChatTab";
 import ActivityTab from "./tabs/ActivityTab";
 import SettingsTab from "./tabs/SettingsTab";
+import FeatureIntroSheet from "./FeatureIntroSheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppContext } from "@/context/AppContext";
+import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import reelsyLogo from "@assets/j.png";
 
 const TABS_MAP = {
@@ -22,6 +24,7 @@ type UiState = { tab?: string; threadId?: string | null };
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState("home");
+  const { featureIntro, handleFeatureIntroClose } = useFeatureIntro();
 
   // --- History API for mobile back button ---
   const historyKey = "reelsy_ui_state";
@@ -313,6 +316,19 @@ const MainApp = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <FeatureIntroSheet
+          open={featureIntro != null}
+          title={featureIntro?.title || ""}
+          description={featureIntro?.description || ""}
+          learnMoreText="Learn more"
+          onClose={handleFeatureIntroClose}
+          onOk={() => {
+            if (!featureIntro) return;
+            featureIntro.action();
+            handleFeatureIntroClose();
+          }}
+        />
       </motion.div>
     );
   }
@@ -426,6 +442,19 @@ const MainApp = () => {
             {renderTab()}
           </motion.div>
         </AnimatePresence>
+
+        <FeatureIntroSheet
+          open={featureIntro != null}
+          title={featureIntro?.title || ""}
+          description={featureIntro?.description || ""}
+          learnMoreText="Learn more"
+          onClose={handleFeatureIntroClose}
+          onOk={() => {
+            if (!featureIntro) return;
+            featureIntro.action();
+            handleFeatureIntroClose();
+          }}
+        />
       </div>
     </motion.div>
   );

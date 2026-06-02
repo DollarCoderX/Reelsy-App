@@ -2,8 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider, useAppContext } from "@/context/AppContext";
+import { FeatureIntroProvider } from "@/context/FeatureIntroContext";
 import { AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useEffect } from "react";
 
 import SplashScreen from "@/components/SplashScreen";
 import WelcomeScreen from "@/components/WelcomeScreen";
@@ -17,12 +19,77 @@ import AuthFriendSuggestions from "@/components/AuthFriendSuggestions";
 import AuthPermissions from "@/components/AuthPermissions";
 import MainApp from "@/components/MainApp";
 import { ShieldAlert, Globe2 } from "lucide-react";
+import { getSession } from "@/lib/supabase-client";
 
 const queryClient = new QueryClient();
 
 function AppContent() {
-  const { appPhase } = useAppContext();
+  const { appPhase, setAppPhase, setUser, user } = useAppContext();
   const isMobile = useIsMobile();
+
+  // Check for persisted user on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      // If user already in context, skip
+      if (user) {
+        setAppPhase('main');
+        return;
+      }
+
+      // Check for persisted user in localStorage (from previous OAuth)
+      const storedUser = localStorage.getItem('reelsy_user');
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+          setAppPhase('main');
+          return;
+        } catch (e) {
+          console.error('Failed to restore user:', e);
+        }
+      }
+
+      // Try to get fresh Supabase session (user just completed OAuth redirect)
+      try {
+        const session = await getSession();
+        if (!session) return; // No session, stay on auth screen
+
+        const { access_token } = session;
+        const supabaseUser = session.user;
+
+        // Call backend to complete registration/login
+        const response = await fetch('/api/auth/register/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accessToken: access_token,
+            displayName: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'User',
+            birthday: supabaseUser.user_metadata?.birthday || new Date().toISOString().split('T')[0],
+            location: supabaseUser.user_metadata?.location || '',
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Backend error:', errorData);
+          return;
+        }
+
+        const result = await response.json();
+        localStorage.setItem('authToken', result.token);
+        setUser({
+          username: result.user.username,
+          nickname: result.user.displayName,
+          age: result.user.age,
+          email: result.user.email,
+        });
+        setAppPhase('main');
+      } catch (err) {
+        console.error('OAuth callback error:', err);
+      }
+    };
+
+    checkAuth();
+  }, []); // Empty deps - run once on mount
 
   const isAuthFlow = appPhase !== "main";
 
@@ -92,9 +159,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppProvider>
-          <IPBlocker>
-            <AppContent />
-          </IPBlocker>
+          <FeatureIntroProvider>
+            <IPBlocker>
+              <AppContent />
+            </IPBlocker>
+          </FeatureIntroProvider>
         </AppProvider>
         <Toaster />
       </TooltipProvider>

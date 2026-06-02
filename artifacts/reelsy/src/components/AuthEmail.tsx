@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useAppContext } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Loader2, Mail } from "lucide-react";
+import { signInWithGoogle } from "@/lib/supabase-client";
 
 const AuthEmail = () => {
   const { setAppPhase, ip, setAuthEmail } = useAppContext();
@@ -74,10 +75,18 @@ const AuthEmail = () => {
       setGoogleLoading(false);
       return;
     }
-    // Mockup Google login flow
-    setTimeout(() => {
-      setAppPhase("auth-profile");
-    }, 2000);
+    
+    try {
+      await signInWithGoogle();
+      // Supabase will redirect to auth callback URL
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to sign in with Google. Please try again.",
+        variant: "destructive",
+      });
+      setGoogleLoading(false);
+    }
   };
 
   return (
