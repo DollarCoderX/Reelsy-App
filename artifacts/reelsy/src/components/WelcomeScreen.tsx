@@ -7,7 +7,7 @@ import reelsyLogo from "@assets/db1645cc1ed95625a5dff41ee9a0f164_1778235733181.j
 const features = [
   { icon: Zap, title: "Pure Content", desc: "No clutter — just what matters to you." },
   { icon: MessageCircle, title: "Intimate Chat", desc: "Connect deeply, without the noise." },
-  { icon: Lock, title: "Privacy", desc: "Reelsy top piority is privacy." },
+  { icon: Lock, title: "Privacy", desc: "Reelsy top priority is privacy." },
 ];
 
 const WelcomeScreen = () => {

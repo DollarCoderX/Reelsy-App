@@ -2332,7 +2332,17 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     setActiveId(id);
     onNavVisible?.(false);
     setThreads((p) => p.map((t) => t.id === id ? { ...t, unread: 0 } : t));
+
+    // History entry so phone back button returns to chat list UI
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "chat");
+      url.searchParams.set("thread", id);
+      window.history.pushState({ tab: "chat", threadId: id }, "", url);
+      localStorage.setItem("reelsy_active_thread_id", id);
+    } catch {}
   };
+
 
   const closeThread = () => {
     setOpenedWithUnread(0);
@@ -2340,7 +2350,18 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     setShowMetaAiBox(false);
     setActiveId(null);
     onNavVisible?.(true);
+
+    // History entry so phone back returns to thread list UI
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "chat");
+      url.searchParams.delete("thread");
+      window.history.pushState({ tab: "chat", threadId: null }, "", url);
+      localStorage.removeItem("reelsy_active_thread_id");
+    } catch {}
+
     setReplyTo(null);
+
     setEditingId(null);
     setContextMsg(null);
     setInput("");

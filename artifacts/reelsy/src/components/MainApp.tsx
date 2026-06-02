@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { Home, Search, MessageCircle, Flame, Settings } from "lucide-react";
 import HomeTab from "./tabs/HomeTab";
@@ -20,6 +21,83 @@ const TABS_MAP = {
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState("home");
+
+  // --- History API for mobile back button ---
+  const historyKey = "reelsy_ui_state";
+  const isHistorySyncRef = useRef(false);
+
+  type UiState = { tab?: string; threadId?: string | null };
+
+  const applyUiState = (s: UiState) => {
+    if (s.tab && s.tab !== activeTab) {
+      isHistorySyncRef.current = true;
+      setActiveTab(s.tab);
+      isHistorySyncRef.current = false;
+    }
+    // Thread restoration is handled via localStorage + ChatTab
+    if (s.threadId !== undefined) {
+      if (s.tab !== "chat") return;
+      localStorage.setItem("reelsy_active_thread_id", s.threadId ? String(s.threadId) : "");
+      if (!s.threadId) localStorage.removeItem("reelsy_active_thread_id");
+    }
+  };
+
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const tab = (url.searchParams.get("tab") || undefined) as string | undefined;
+    const threadId = url.searchParams.get("thread") || null;
+
+    if (tab) {
+      setActiveTab(tab);
+      if (threadId) localStorage.setItem("reelsy_active_thread_id", threadId);
+    }
+
+    const onPop = (e: PopStateEvent) => {
+      const st = (e.state || {}) as UiState;
+      // Prefer state; fallback to query params.
+      if (st && (st.tab || st.threadId !== undefined)) {
+        applyUiState(st);
+        return;
+      }
+      const sp = new URL(window.location.href).searchParams;
+      const nextTab = sp.get("tab") || "home";
+      setActiveTab(nextTab);
+      const nextThread = sp.get("thread");
+      if (nextThread) localStorage.setItem("reelsy_active_thread_id", nextThread);
+      else localStorage.removeItem("reelsy_active_thread_id");
+    };
+
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Push a history entry whenever the visible tab changes.
+    if (isHistorySyncRef.current) return;
+
+    const threadId = localStorage.getItem("reelsy_active_thread_id");
+    const state: UiState = {
+      tab: activeTab,
+      threadId: threadId ? threadId : null,
+    };
+
+    // Avoid spamming history for initial mount.
+    // If this is the first state, replace instead of push.
+    const currentState = window.history.state as UiState | null;
+    const sameTab = currentState && currentState.tab === activeTab;
+    const method = sameTab ? "replaceState" : "pushState";
+
+    const url = new URL(window.location.href);
+    if (activeTab && activeTab !== "home") url.searchParams.set("tab", activeTab);
+    else url.searchParams.delete("tab");
+    if (threadId && activeTab === "chat") url.searchParams.set("thread", threadId);
+    else url.searchParams.delete("thread");
+
+    (window.history as any)[method]({ ...state, __k: historyKey }, "", url);
+  }, [activeTab]);
+
   const [hideNav, setHideNav] = useState(false);
   const isMobile = useIsMobile();
   const { user, tier, t } = useAppContext();

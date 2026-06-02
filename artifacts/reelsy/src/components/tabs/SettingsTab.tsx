@@ -737,7 +737,7 @@ const FAQ_ITEMS = [
   { q: "Is Reelsy really ad-free?", a: "No. Reelsy is not ad-free. But reelsy carefully utilizes ad to make it comfotable for users." },
   { q: "How do I change my avatar?", a: "Go to Settings and tap your profile picture or the camera icon to open the Avatar Customizer." },
   { q: "What does anonymous mode do?", a: "This feature is currently only available for premium and premium plus tier, which allows users to hide themselves from being searched on reelsy." },
-  { q: "What is Reelsy top piority?", a: "Reelsy top piority is privacy and fast communication." },
+  { q: "What is Reelsy top priority?", a: "Reelsy top priority is privacy and fast communication." },
   { q: "What is the difference between Reelsy Lite and Reelsy?", a: "Reelsy Lite is a more friendly app size, uses less memories and storage but has limited features, it is mostly used by idividuals who are using lower budget phones or user's who can't use the main app due to restriction reasons. While the first published main Reelsy apps is more effective for social communication with friends and family." },
   { q: "Does Reelsy do promo for subscription?", a: "Unfortnately, No. Reelsy doesn't do promo for subcriptions and advice user to only subscribe through the Reelsy app and not from friends, family or stranger, to avoid fraud." },
   { q: "Can i become a premium or premium plus user for free?", a: "Yes, few people know that Reelsy does in app competitions, which gives rewards based on activities and doesn't require money." },
