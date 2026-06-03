@@ -365,7 +365,10 @@ router.post('/signin-google', async (req, res) => {
     });
   } catch (error) {
     req.log.error(error, 'Error registering with Google');
-    return res.status(500).json({ error: 'Google registration failed' });
+    return res.status(500).json({
+      error: 'Google registration failed',
+      details: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
