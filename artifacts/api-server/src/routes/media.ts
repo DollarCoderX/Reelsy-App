@@ -5,8 +5,10 @@ import fs from 'fs';
 
 const router = Router();
 
-const uploadDir = path.resolve(process.cwd(), 'uploads');
+// Vercel: use writable storage. /tmp is available; /var/task is read-only.
+const uploadDir = path.join(process.env.TMPDIR || '/tmp', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),

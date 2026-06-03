@@ -10,10 +10,18 @@ export const signInWithGoogle = async () => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
       options: {
-      // Important for Vercel/production: Supabase OAuth must redirect to your deployed domain.
-      redirectTo:
-        (import.meta.env.VITE_SITE_URL as string | undefined)?.trim() ||
-        `${window.location.origin}`,
+      // Production must never redirect back to localhost.
+      redirectTo: (() => {
+        const siteUrl = (import.meta.env.VITE_SITE_URL as string | undefined)?.trim();
+        if (import.meta.env.PROD) {
+          if (!siteUrl) {
+            throw new Error('VITE_SITE_URL is required in production for Supabase OAuth redirectTo');
+          }
+          return siteUrl;
+        }
+        // Dev fallback is fine.
+        return siteUrl || window.location.origin;
+      })(),
       scopes: 'profile email',
     },
   });
