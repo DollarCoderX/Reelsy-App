@@ -48,8 +48,8 @@ export const useSupabaseStatusPolling = () => {
         if (supabaseUser.banned_until) {
           const banUntil = new Date(supabaseUser.banned_until);
           if (banUntil > new Date()) {
-            console.warn('Account is disabled on Supabase, logging out');
-            handleLogout('Your account has been disabled.');
+            console.warn('Account is disabled on Supabase because it is banned, logging out');
+            handleLogout('Your account has been disabled.', 'banned');
             return;
           }
         }
@@ -92,7 +92,13 @@ export const useSupabaseStatusPolling = () => {
                   userMetadata: data.userMetadata,
                   changes: data.changes,
                 });
-                handleLogout(data.reason || 'Your account has been disabled.');
+                const banPhase =
+                  data.changes?.includes('account_banned') ||
+                  data.changes?.includes('user_banned') ||
+                  data.reason?.toLowerCase().includes('ban')
+                    ? 'banned'
+                    : 'account-suspended';
+                handleLogout(data.reason || 'Your account has been disabled.', banPhase);
                 return;
               }
               
@@ -181,7 +187,10 @@ export const useSupabaseStatusPolling = () => {
     };
   }, [user?.username, user?.supabaseId, setUser, setAppPhase]);
 
-  const handleLogout = (reason: string = 'Your account has been disabled.', phase: 'account-suspended' | 'banned' = 'account-suspended') => {
+  const handleLogout = (
+    reason: string = 'Your account has been disabled.',
+    phase: 'account-suspended' | 'banned' = reason.toLowerCase().includes('ban') ? 'banned' : 'account-suspended'
+  ) => {
     // Clear stored user data
     localStorage.removeItem('reelsy_user');
     localStorage.removeItem('authToken');

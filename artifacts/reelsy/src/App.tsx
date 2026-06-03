@@ -33,6 +33,15 @@ function AppContent() {
   // Poll Supabase status every 10 seconds to detect bans/disabling
   useSupabaseStatusPolling();
 
+  useEffect(() => {
+    if (!user) return;
+    if (user.isBanned && appPhase !== 'banned') {
+      setAppPhase('banned');
+    } else if (user.isSuspended && appPhase !== 'account-suspended') {
+      setAppPhase('account-suspended');
+    }
+  }, [user, appPhase, setAppPhase]);
+
   // Check for persisted user on mount
   useEffect(() => {
     const checkAuth = async () => {
