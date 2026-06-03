@@ -76,50 +76,63 @@ export function useIPRestriction(): IPRestrictionHook {
     };
 
     try {
-      const response = await fetch("https://ipwho.is/");
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.success) {
-          const countryCode = data.country_code || null;
-          const countryName = data.country || null;
-          const currency = currencyFromCountryCode(countryCode);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-          if (data.security && (data.security.vpn || data.security.proxy || data.security.tor)) {
-            applySuccess({ blocked: true, reason: "vpn" });
-            return false;
+      try {
+        const response = await fetch("https://ipwho.is/", { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data?.success) {
+            const countryCode = data.country_code || null;
+            const countryName = data.country || null;
+            const currency = currencyFromCountryCode(countryCode);
+
+            if (data.security && (data.security.vpn || data.security.proxy || data.security.tor)) {
+              applySuccess({ blocked: true, reason: "vpn" });
+              return false;
+            }
+            if (BLOCKED_COUNTRIES.includes(countryCode)) {
+              applySuccess({ blocked: true, reason: "country", countryCode, countryName, currency });
+              return false;
+            }
+            applySuccess({ blocked: false, reason: null, countryCode, countryName, currency });
+            return true;
           }
-          if (BLOCKED_COUNTRIES.includes(countryCode)) {
-            applySuccess({ blocked: true, reason: "country", countryCode, countryName, currency });
-            return false;
-          }
-          applySuccess({ blocked: false, reason: null, countryCode, countryName, currency });
-          return true;
         }
+      } catch {
+        // ipwho.is blocked by adblocker, CORS, or network error, proceed to fallback
+      }
+
+      try {
+        const fbController = new AbortController();
+        const fbTimeoutId = setTimeout(() => fbController.abort(), 5000);
+        
+        const fbResponse = await fetch("https://ipapi.co/json/", { signal: fbController.signal });
+        clearTimeout(fbTimeoutId);
+        
+        if (fbResponse.ok) {
+          const fbData = await fbResponse.json();
+          if (!fbData?.error) {
+            const countryCode = fbData.country_code || null;
+            const countryName = fbData.country || null;
+            const currency = currencyFromCountryCode(countryCode);
+
+            if (BLOCKED_COUNTRIES.includes(countryCode || fbData.country)) {
+              applySuccess({ blocked: true, reason: "country", countryCode, countryName, currency });
+              return false;
+            }
+            applySuccess({ blocked: false, reason: null, countryCode, countryName, currency });
+            return true;
+          }
+        }
+      } catch {
+        // Fallback also failed (CORS, timeout, or no internet)
       }
     } catch {
-      // ipwho.is blocked by adblocker or network error, proceed to fallback
-    }
-
-    try {
-      // Fallback to ipapi.co (doesn't check VPN, but verifies country)
-      const fbResponse = await fetch("https://ipapi.co/json/");
-      if (fbResponse.ok) {
-        const fbData = await fbResponse.json();
-        if (!fbData?.error) {
-          const countryCode = fbData.country_code || null;
-          const countryName = fbData.country || null;
-          const currency = currencyFromCountryCode(countryCode);
-
-          if (BLOCKED_COUNTRIES.includes(countryCode || fbData.country)) {
-            applySuccess({ blocked: true, reason: "country", countryCode, countryName, currency });
-            return false;
-          }
-          applySuccess({ blocked: false, reason: null, countryCode, countryName, currency });
-          return true;
-        }
-      }
-    } catch {
-      // Both APIs failed (extreme adblocker or no internet)
+      // Outer catch for any unexpected errors
     }
 
     // If we completely fail to detect, fail open to prevent locking out legitimate users

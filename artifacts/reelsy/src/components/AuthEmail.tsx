@@ -6,7 +6,7 @@ import { ChevronLeft, Loader2, Mail } from "lucide-react";
 import { signInWithGoogle } from "@/lib/supabase-client";
 
 const AuthEmail = () => {
-  const { setAppPhase, ip, setAuthEmail } = useAppContext();
+  const { setAppPhase, setAuthEmail } = useAppContext();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -70,11 +70,6 @@ const AuthEmail = () => {
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    const isValid = await ip.checkConnection();
-    if (!isValid) {
-      setGoogleLoading(false);
-      return;
-    }
     
     try {
       await signInWithGoogle();
