@@ -3,28 +3,30 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+});
 
 // Google OAuth sign in
 export const signInWithGoogle = async () => {
+  const siteUrl = (import.meta.env.VITE_SITE_URL as string | undefined)?.trim();
+  const redirectTo = siteUrl || window.location.origin;
+
+  if (import.meta.env.PROD && !redirectTo) {
+    throw new Error('VITE_SITE_URL is required in production for Supabase OAuth redirectTo');
+  }
+
+  if (import.meta.env.PROD && redirectTo.includes('localhost')) {
+    console.warn('Supabase OAuth redirectTo is localhost in production. Check VITE_SITE_URL and deployment settings.');
+  }
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-      options: {
-      // Production must never redirect back to localhost.
-      redirectTo: (() => {
-        const siteUrl = (import.meta.env.VITE_SITE_URL as string | undefined)?.trim();
-
-        // In production (and also when SITE_URL is provided), always use the deployed URL.
-        if (import.meta.env.PROD) {
-          if (!siteUrl) {
-            throw new Error('VITE_SITE_URL is required in production for Supabase OAuth redirectTo');
-          }
-          return siteUrl;
-        }
-
-        // In dev, fallback to current origin.
-        return siteUrl || window.location.origin;
-      })(),
+    options: {
+      redirectTo,
       scopes: 'profile email',
     },
   });

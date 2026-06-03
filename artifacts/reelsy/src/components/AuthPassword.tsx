@@ -4,7 +4,7 @@ import { useAppContext } from "@/context/AppContext";
 import { Check, ChevronLeft, Eye, EyeOff, Lock } from "lucide-react";
 
 const AuthPassword = () => {
-  const { setAppPhase } = useAppContext();
+  const { setAppPhase, setAuthPassword } = useAppContext();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -111,7 +111,11 @@ const AuthPassword = () => {
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.16 }}
         className="shrink-0 px-7 pb-8 pt-4">
-        <motion.button whileTap={{ scale: 0.97 }} onClick={() => setAppPhase("auth-profile")}
+        <motion.button whileTap={{ scale: 0.97 }} onClick={() => {
+            if (!canProceed) return;
+            setAuthPassword(password);
+            setAppPhase("auth-profile");
+          }}
           disabled={!canProceed}
           className="w-full py-4 rounded-full font-semibold text-[15px] shadow-sm disabled:opacity-40 flex items-center justify-center bg-foreground text-background">
           Continue

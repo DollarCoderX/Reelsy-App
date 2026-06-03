@@ -4,7 +4,7 @@ import { useAppContext } from "@/context/AppContext";
 import { ChevronLeft, Loader2, Mail, X } from "lucide-react";
 
 const AuthOTP = () => {
-  const { setAppPhase, ip, authEmail } = useAppContext();
+  const { setAppPhase, authEmail } = useAppContext();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(45);
@@ -32,14 +32,6 @@ const AuthOTP = () => {
     if (digit && idx < 5) inputRefs.current[idx + 1]?.focus();
     if (next.every((d) => d !== "")) {
       setIsLoading(true);
-      const isValid = await ip.checkConnection();
-      if (!isValid) {
-        setIsLoading(false);
-        setOtp(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
-        return;
-      }
-      
       try {
         const code = next.join("");
         const res = await fetch("/api/auth/verify-otp", {

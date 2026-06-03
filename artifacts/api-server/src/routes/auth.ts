@@ -114,7 +114,15 @@ router.post('/verify-otp', async (req, res) => {
 // Endpoint to register with email and password
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, displayName } = req.body;
+    const {
+      email,
+      password,
+      displayName,
+      username: rawUsername,
+      age,
+      interests,
+      profileImage,
+    } = req.body;
 
     if (!email || !password || !displayName || typeof email !== 'string' || typeof password !== 'string' || typeof displayName !== 'string') {
       return res.status(400).json({ error: 'Email, password, and displayName are required' });
@@ -132,23 +140,41 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
+    // Normalize and validate username if provided
+    let username = rawUsername && typeof rawUsername === 'string' ? rawUsername.trim().replace(/^@/, '') : '';
+    if (username) {
+      if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) {
+        return res.status(400).json({ error: 'Username must be 3-24 characters and contain only letters, numbers, or underscores' });
+      }
+      const existingUsername = await usersCollection.findOne({ username: username.toLowerCase() });
+      if (existingUsername) {
+        return res.status(409).json({ error: 'Username already taken' });
+      }
+      username = username.toLowerCase();
+    }
+
     // Check for suspicious email domain
     const emailCheck = isSuspiciousEmail(email);
 
-    // Generate unique username from display name
-    const baseUsername = generateUniqueUsername(displayName);
-    const username = await findAvailableUsername(baseUsername, usersCollection);
+    // Generate unique username if one was not provided
+    if (!username) {
+      const baseUsername = generateUniqueUsername(displayName);
+      username = await findAvailableUsername(baseUsername, usersCollection);
+    }
 
     // Hash password
     const hashedPassword = hashPassword(password);
 
-    // Create MongoDB user
+    // Build MongoDB user record
     const mongoUser: ReelsyUser = {
       userEmail: email.toLowerCase(),
       emailPassword: hashedPassword,
       username,
       displayName,
       authProvider: 'email',
+      age: typeof age === 'number' ? age : undefined,
+      interests: Array.isArray(interests) ? interests.filter((item) => typeof item === 'string') : undefined,
+      profileImage: typeof profileImage === 'string' ? profileImage : undefined,
       strikeCount: emailCheck.suspicious ? 1 : 0,
       strikes: emailCheck.suspicious ? [{
         type: emailCheck.reason || 'suspicious_email',
@@ -171,6 +197,9 @@ router.post('/register', async (req, res) => {
         username,
         displayName,
         email,
+        age: mongoUser.age,
+        interests: mongoUser.interests,
+        profileImage: mongoUser.profileImage,
       },
       token,
     });
@@ -446,6 +475,8 @@ router.get('/profile/:username', async (req, res) => {
 
     const supabaseUser = await getSupabaseUser(username);
 
+    const isBanned = !!((mongoUser as any).banned || mongoUser.isBanned);
+
     return res.status(200).json({
       id: mongoUser._id,
       username: mongoUser.username,
@@ -455,10 +486,10 @@ router.get('/profile/:username', async (req, res) => {
       age: mongoUser.age,
       interests: mongoUser.interests,
       tier: supabaseUser?.tier || 'free',
-      isSuspended: mongoUser.isSuspended,
+      isSuspended: mongoUser.isSuspended || false,
       suspensionReason: mongoUser.suspensionReason,
       suspensionDetails: mongoUser.suspensionDetails,
-      isBanned: mongoUser.isBanned || false,
+      isBanned,
       banReason: mongoUser.banReason || null,
       bannedAt: mongoUser.bannedAt || null,
       bannedUntil: mongoUser.bannedUntil || null,
@@ -657,9 +688,11 @@ router.get('/ban-status/:username', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const isBanned = !!((user as any).banned || user.isBanned);
+
     return res.json({
       username: user.username,
-      isBanned: user.isBanned || false,
+      isBanned,
       banReason: user.banReason || null,
       bannedAt: user.bannedAt || null,
       bannedUntil: user.bannedUntil || null,

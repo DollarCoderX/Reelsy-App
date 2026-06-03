@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAppContext } from "@/context/AppContext";
+import { useToast } from "@/hooks/use-toast";
 import { Bell, MapPin, Users, Fingerprint, ChevronLeft } from "lucide-react";
 
 const PERMS = [
@@ -11,8 +12,10 @@ const PERMS = [
 ];
 
 const AuthPermissions = () => {
-  const { setAppPhase } = useAppContext();
+  const { setAppPhase, user, authEmail, authPassword, setUser, setAuthPassword } = useAppContext();
+  const { toast } = useToast();
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   const toggle = (key: string) => setEnabled((p) => ({ ...p, [key]: !p[key] }));
 
@@ -64,9 +67,71 @@ const AuthPermissions = () => {
 
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.34 }} className="shrink-0 px-7 pb-10 pt-4">
-        <motion.button whileTap={{ scale: 0.97 }} onClick={() => setAppPhase("main")}
-          className="w-full py-4 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-sm">
-          Let's go
+        <motion.button whileTap={{ scale: 0.97 }} onClick={async () => {
+            if (!user) {
+              toast({ title: 'Unable to complete signup', description: 'Missing profile details.', variant: 'destructive' });
+              return;
+            }
+
+            const shouldRegister = !!authEmail && !!authPassword;
+            if (!shouldRegister) {
+              setAppPhase('main');
+              return;
+            }
+
+            setIsSaving(true);
+            try {
+              const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: authEmail,
+                  password: authPassword,
+                  displayName: user.nickname || user.username.replace(/^@/, ''),
+                  username: user.username.replace(/^@/, ''),
+                  age: user.age,
+                  interests: user.interests || [],
+                  profileImage: user.avatar,
+                }),
+              });
+
+              if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Registration failed');
+              }
+
+              const result = await response.json();
+              localStorage.setItem('authToken', result.token);
+              setUser({
+                username: result.user.username.startsWith('@') ? result.user.username : `@${result.user.username}`,
+                nickname: result.user.displayName,
+                age: result.user.age,
+                email: result.user.email,
+                avatar: result.user.profileImage || undefined,
+                interests: result.user.interests || undefined,
+                supabaseId: result.user.supabaseId,
+                isBanned: result.user.isBanned || false,
+                banReason: result.user.banReason,
+                bannedAt: result.user.bannedAt,
+                bannedUntil: result.user.bannedUntil,
+                isSuspended: result.user.isSuspended || false,
+                suspensionReason: result.user.suspensionReason,
+                suspensionDetails: result.user.suspensionDetails,
+              });
+
+              toast({ title: 'Welcome to Reelsy', description: 'Your account has been created.', variant: 'default' });
+              setAuthPassword(null);
+              setAppPhase('main');
+            } catch (error) {
+              toast({ title: 'Registration failed', description: error instanceof Error ? error.message : 'Unable to create account.', variant: 'destructive' });
+              console.error('Registration error:', error);
+            } finally {
+              setIsSaving(false);
+            }
+          }}
+          disabled={isSaving}
+          className="w-full py-4 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-sm disabled:opacity-40">
+          {isSaving ? 'Saving...' : "Let's go"}
         </motion.button>
       </motion.div>
     </motion.div>

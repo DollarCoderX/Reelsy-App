@@ -54,9 +54,11 @@ function AppContent() {
       if (storedUser) {
         try {
           const parsedUser = JSON.parse(storedUser);
+          if (parsedUser.banned && !parsedUser.isBanned) {
+            parsedUser.isBanned = true;
+          }
           setUser(parsedUser);
-          
-          // Check if account is banned (highest priority)
+
           if (parsedUser.isBanned) {
             setAppPhase('banned');
           } else if (parsedUser.isSuspended) {

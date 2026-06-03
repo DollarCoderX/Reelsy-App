@@ -61,6 +61,8 @@ interface AppContextType {
   setReelsyNumber: (n: string | null) => void;
   authEmail: string | null;
   setAuthEmail: (email: string | null) => void;
+  authPassword: string | null;
+  setAuthPassword: (password: string | null) => void;
   ip: IPRestrictionHook;
   chatWallpaper: ChatWallpaper | null;
   setChatWallpaper: (wallpaper: ChatWallpaper | null) => void;
@@ -242,6 +244,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [tier, setTier] = useState<Tier>("free");
   const [reelsyNumber, setReelsyNumber] = useState<string | null>(null);
   const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [authPassword, setAuthPassword] = useState<string | null>(null);
   const [chatWallpaper, setChatWallpaper] = useState<ChatWallpaper | null>(null);
   const [draftTimestamps, setDraftTimestamps] = useState<Record<string, number>>({});
   const [archivedMessages, setArchivedMessages] = useState<Set<string>>(new Set());
@@ -328,7 +331,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     <AppContext.Provider value={{
       appPhase, setAppPhase, user, setUser, theme, setTheme, tier, setTier,
       language, setLanguage, t: (key: string) => translate(language, key),
-      reelsyNumber, setReelsyNumber, authEmail, setAuthEmail, ip,
+      reelsyNumber, setReelsyNumber, authEmail, setAuthEmail, authPassword, setAuthPassword, ip,
       chatWallpaper, setChatWallpaper, draftTimestamps, setDraftTimestamps,
       archivedMessages, setArchivedMessages, draftFirstTimeSeen, setDraftFirstTimeSeen
     }}>
