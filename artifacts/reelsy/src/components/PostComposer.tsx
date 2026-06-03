@@ -4,6 +4,7 @@ import { X, Image as ImageIcon, Video, AtSign, Hash, Globe,Repeat2, ChevronDown,
 import { useAppContext } from "@/context/AppContext";
 import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import { BOTS } from "@/data/bots";
+import { generateText } from "@/lib/ai";
 
 type ComposerPost = {
   type: "text" | "image" | "video";
@@ -324,14 +325,14 @@ const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
   // AI refinement for social media posts with a local fallback.
   const refineWithAI = async (input: string) => {
     try {
-      const refined = await pollinationsText(`${POST_AI_CONTEXT}
+      const refined = await generateText(`${POST_AI_CONTEXT}
 Refine this Reelsy post for clarity, warmth, and engagement. Keep it concise, natural, and safe. Return only the improved post text.
 
 Post:
 ${input}`);
       if (refined) return refined.slice(0, charLimit);
     } catch (e) {
-      console.error("Pollinations refinement skipped, using local polish");
+      console.error("AI refinement skipped, using local polish");
     }
     
     // Local smart refinement (always works)
@@ -361,14 +362,14 @@ ${input}`);
 
   const generatePostIdea = async (input: string) => {
     try {
-      const reply = await pollinationsText(`${POST_AI_CONTEXT}
+      const reply = await generateText(`${POST_AI_CONTEXT}
 The user wants help creating a Reelsy post idea. Only discuss post ideas, captions, hooks, tone, and safe content. Keep the answer under 70 words.
 
 User prompt:
 ${input}`);
       if (reply) return reply.slice(0, 500);
     } catch (e) {
-      console.error("Pollinations idea chat skipped, using local reply");
+      console.error("AI idea chat skipped, using local reply");
     }
 
     const topic = input.trim();
@@ -820,18 +821,29 @@ ${input}`);
                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : musicResults.map((track) => (
-                  <button
+                  <div
                     key={track.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       setSelectedMusic({ title: track.name, artist: track.artist_name, url: track.audio });
                       setShowMusicSheet(false);
                       if (previewAudio) { previewAudio.pause(); setPreviewAudio(null); setPlayingId(null); }
                     }}
-                    className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-secondary transition-colors text-left"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedMusic({ title: track.name, artist: track.artist_name, url: track.audio });
+                        setShowMusicSheet(false);
+                        if (previewAudio) { previewAudio.pause(); setPreviewAudio(null); setPlayingId(null); }
+                      }
+                    }}
+                    className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-secondary transition-colors text-left cursor-pointer"
                   >
                     <div className="relative w-12 h-12 rounded-xl bg-secondary overflow-hidden shrink-0 group">
                       <img src={track.image} alt="" className="w-full h-full object-cover" />
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (playingId === track.id) {
@@ -855,7 +867,7 @@ ${input}`);
                       <p className="font-bold text-[14px] truncate">{track.name}</p>
                       <p className="text-[12px] text-muted-foreground truncate">{track.artist_name}</p>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </motion.div>

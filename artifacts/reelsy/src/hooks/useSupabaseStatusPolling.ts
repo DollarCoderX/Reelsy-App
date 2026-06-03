@@ -11,6 +11,7 @@ export const useSupabaseStatusPolling = () => {
   const { user, setUser, setAppPhase } = useAppContext();
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastCheckRef = useRef<number>(0);
+  const restrictionStorageKey = 'reelsy_account_restriction';
 
   useEffect(() => {
     if (!user?.username) {
@@ -98,7 +99,7 @@ export const useSupabaseStatusPolling = () => {
                   data.reason?.toLowerCase().includes('ban')
                     ? 'banned'
                     : 'account-suspended';
-                handleLogout(data.reason || 'Your account has been disabled.', banPhase);
+                handleRestriction(data.reason || 'Your account has been disabled.', banPhase, data.bannedUntil);
                 return;
               }
               
@@ -210,13 +211,33 @@ export const useSupabaseStatusPolling = () => {
     reason: string = 'Your account has been disabled.',
     phase: 'account-suspended' | 'banned' = reason.toLowerCase().includes('ban') ? 'banned' : 'account-suspended'
   ) => {
-    // Clear stored user data
-    localStorage.removeItem('reelsy_user');
+    const restrictedUser = user
+      ? {
+          ...user,
+          isBanned: phase === 'banned' ? true : user.isBanned,
+          isSuspended: phase === 'account-suspended' ? true : user.isSuspended,
+          banReason: phase === 'banned' ? reason : user.banReason,
+          suspensionReason: phase === 'account-suspended' ? reason : user.suspensionReason,
+        }
+      : null;
+
     localStorage.removeItem('authToken');
     localStorage.removeItem('supabaseId');
 
-    // Reset user state
-    setUser(null);
+    if (restrictedUser) {
+      setUser(restrictedUser);
+      sessionStorage.setItem(
+        restrictionStorageKey,
+        JSON.stringify({
+          phase,
+          user: restrictedUser,
+          reason,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+    } else {
+      setUser(null);
+    }
 
     // Update app phase with appropriate status
     setAppPhase(phase);
@@ -228,16 +249,39 @@ export const useSupabaseStatusPolling = () => {
   const handleBan = (banReason: string = 'Account banned', bannedUntil?: string) => {
     // Update user state with ban info
     if (user) {
-      setUser({
+      const bannedUser = {
         ...user,
         isBanned: true,
         banReason: banReason,
         bannedUntil: bannedUntil,
-      });
+      };
+      setUser(bannedUser);
+      sessionStorage.setItem(
+        restrictionStorageKey,
+        JSON.stringify({
+          phase: 'banned',
+          user: bannedUser,
+          reason: banReason,
+          updatedAt: new Date().toISOString(),
+        })
+      );
     }
     // Route to banned page
     setAppPhase('banned');
     console.warn('User account is banned:', banReason);
+  };
+
+  const handleRestriction = (
+    reason: string,
+    phase: 'account-suspended' | 'banned',
+    bannedUntil?: string
+  ) => {
+    if (phase === 'banned') {
+      handleBan(reason || 'Account banned', bannedUntil);
+      return;
+    }
+
+    handleLogout(reason, phase);
   };
 };
 

@@ -1,26 +1,134 @@
-import { useEffect, useState } from 'react';
-import { AlertCircle, Calendar, FileText, Moon, SunMedium, Star, CheckCircle2 } from 'lucide-react';
-import { useAppContext } from '@/context/AppContext';
-import { Button } from './ui/button';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  Fingerprint,
+  Mail,
+  Moon,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  SunMedium,
+  UserRound,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAppContext } from '@/context/AppContext';
+import { getSession } from '@/lib/supabase-client';
+import { Button } from './ui/button';
 
-/**
- * BannedUser component - Displayed when user is banned
- * Shows ban reason, ban date, and contact/appeal option
- */
+const REVIEW_DRAFT_KEY = 'reelsy_ban_review_draft';
+const RESTRICTION_STORAGE_KEY = 'reelsy_account_restriction';
+
+const appealOptions = [
+  { id: 'mistake', label: 'Mistake', text: 'This ban was applied to the wrong account or content.' },
+  { id: 'context', label: 'Context', text: 'Important context was missed during the first review.' },
+  { id: 'compromised', label: 'Compromised', text: 'Someone else may have accessed this account.' },
+  { id: 'other', label: 'Other', text: 'A different issue needs a human review.' },
+] as const;
+
+type AppealType = (typeof appealOptions)[number]['id'];
+
+const getTelemetry = () => ({
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  locale: navigator.language,
+  platform: navigator.platform,
+  screenResolution: `${window.screen.width}x${window.screen.height}`,
+  viewport: `${window.innerWidth}x${window.innerHeight}`,
+  deviceMemory: (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+  deviceCores: navigator.hardwareConcurrency,
+  connectionType: (navigator as Navigator & { connection?: { effectiveType?: string } }).connection?.effectiveType,
+});
+
 export const BannedUser = () => {
-  const { user, setAppPhase, theme, setTheme } = useAppContext();
+  const { user, setUser, setAppPhase, theme, setTheme } = useAppContext();
+  const [accountId, setAccountId] = useState(user?.username || '');
+  const [contactEmail, setContactEmail] = useState(user?.email || '');
+  const [appealType, setAppealType] = useState<AppealType>('mistake');
   const [reviewText, setReviewText] = useState('');
-  const [rating, setRating] = useState(5);
+  const [evidenceText, setEvidenceText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [reviewStatus, setReviewStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const [confirmTruth, setConfirmTruth] = useState(false);
+  const [confirmContact, setConfirmContact] = useState(false);
+
+  const selectedAppeal = appealOptions.find((option) => option.id === appealType) || appealOptions[0];
+  const totalCharacters = reviewText.trim().length + evidenceText.trim().length;
+  const canSubmit =
+    accountId.trim().length >= 3 &&
+    contactEmail.trim().includes('@') &&
+    reviewText.trim().length >= 20 &&
+    confirmTruth &&
+    confirmContact &&
+    !isSubmitting;
+
+  const statusItems = useMemo(
+    () => [
+      {
+        label: 'Restriction',
+        value: user?.isBanned ? 'Active ban' : user?.isSuspended ? 'Suspended' : 'Under review',
+      },
+      {
+        label: 'Review window',
+        value: 'Up to 24 hours',
+      },
+      {
+        label: 'Sync',
+        value: lastSyncedAt ? `Checked ${lastSyncedAt}` : 'Auto checks on refresh',
+      },
+    ],
+    [lastSyncedAt, user?.isBanned, user?.isSuspended]
+  );
 
   useEffect(() => {
-    if (!user?.isBanned && !user?.isSuspended) {
+    if (user && !user.isBanned && !user.isSuspended) {
+      sessionStorage.removeItem(RESTRICTION_STORAGE_KEY);
       setAppPhase('main');
     }
   }, [user, setAppPhase]);
+
+  useEffect(() => {
+    setAccountId((current) => current || user?.username || '');
+    setContactEmail((current) => current || user?.email || '');
+  }, [user?.email, user?.username]);
+
+  useEffect(() => {
+    try {
+      const rawDraft = localStorage.getItem(REVIEW_DRAFT_KEY);
+      if (!rawDraft) return;
+      const draft = JSON.parse(rawDraft);
+      setAccountId(draft.accountId || user?.username || '');
+      setContactEmail(draft.contactEmail || user?.email || '');
+      setAppealType(draft.appealType || 'mistake');
+      setReviewText(draft.reviewText || '');
+      setEvidenceText(draft.evidenceText || '');
+      setConfirmTruth(Boolean(draft.confirmTruth));
+      setConfirmContact(Boolean(draft.confirmContact));
+    } catch {
+      localStorage.removeItem(REVIEW_DRAFT_KEY);
+    }
+  }, [user?.email, user?.username]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      REVIEW_DRAFT_KEY,
+      JSON.stringify({
+        accountId,
+        contactEmail,
+        appealType,
+        reviewText,
+        evidenceText,
+        confirmTruth,
+        confirmContact,
+      })
+    );
+  }, [accountId, contactEmail, appealType, reviewText, evidenceText, confirmTruth, confirmContact]);
 
   const handleToggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
@@ -30,17 +138,97 @@ export const BannedUser = () => {
     localStorage.removeItem('reelsy_user');
     localStorage.removeItem('authToken');
     localStorage.removeItem('supabaseId');
+    sessionStorage.removeItem(RESTRICTION_STORAGE_KEY);
+    setUser(null);
     setAppPhase('auth-email');
   };
 
-  const handleSubmitReview = async () => {
-    if (!user?.username || !user?.email) {
-      setReviewError('Unable to submit review. Please log in again.');
-      return;
-    }
+  const syncAccountStatus = async (silent = false) => {
+    if (!silent) setReviewError(null);
+    setIsSyncing(true);
 
-    if (reviewText.trim().length < 20) {
-      setReviewError('Please write at least 20 characters.');
+    try {
+      const username = accountId.trim() || user?.username;
+      if (username) {
+        const profileResponse = await fetch(`/api/auth/profile/${encodeURIComponent(username)}`);
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          const syncedUser = {
+            ...(user || {
+              username: profileData.username,
+              nickname: profileData.displayName || profileData.username,
+              age: profileData.age || 18,
+            }),
+            username: profileData.username,
+            nickname: profileData.displayName || user?.nickname || profileData.username,
+            email: profileData.email || user?.email,
+            avatar: profileData.profileImage || user?.avatar,
+            age: profileData.age || user?.age || 18,
+            isBanned: profileData.isBanned || false,
+            banReason: profileData.banReason || undefined,
+            bannedAt: profileData.bannedAt || undefined,
+            bannedUntil: profileData.bannedUntil || undefined,
+            isSuspended: profileData.isSuspended || false,
+            suspensionReason: profileData.suspensionReason || undefined,
+            suspensionDetails: profileData.suspensionDetails || undefined,
+            supabaseId: user?.supabaseId,
+          };
+
+          setUser(syncedUser);
+          setLastSyncedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+          if (!syncedUser.isBanned && !syncedUser.isSuspended) {
+            sessionStorage.removeItem(RESTRICTION_STORAGE_KEY);
+            setAppPhase('main');
+            return;
+          }
+
+          sessionStorage.setItem(
+            RESTRICTION_STORAGE_KEY,
+            JSON.stringify({
+              phase: syncedUser.isBanned ? 'banned' : 'account-suspended',
+              user: syncedUser,
+              reason: syncedUser.banReason || syncedUser.suspensionReason,
+              updatedAt: new Date().toISOString(),
+            })
+          );
+          return;
+        }
+      }
+
+      const session = await getSession();
+      if (session?.access_token) {
+        setLastSyncedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      }
+    } catch (error) {
+      if (!silent) {
+        setReviewError(error instanceof Error ? error.message : 'Status sync failed. Try again.');
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleWake = () => {
+      syncAccountStatus(true);
+    };
+
+    window.addEventListener('focus', handleWake);
+    document.addEventListener('visibilitychange', handleWake);
+    syncAccountStatus(true);
+
+    return () => {
+      window.removeEventListener('focus', handleWake);
+      document.removeEventListener('visibilitychange', handleWake);
+    };
+    // Run on mount and when the remembered account changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
+
+  const handleSubmitReview = async () => {
+    if (!canSubmit) {
+      setReviewError('Complete the account, email, reason, and confirmations before sending.');
       return;
     }
 
@@ -49,18 +237,32 @@ export const BannedUser = () => {
     setReviewError(null);
 
     try {
+      const submittedAt = new Date().toISOString();
       const response = await fetch('/api/auth/suspension-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: user.email,
-          username: user.username,
+          email: contactEmail.trim(),
+          username: accountId.trim(),
           reviewData: {
             type: 'ban_appeal',
-            rating,
+            appealType,
             message: reviewText.trim(),
-            banReason: user.banReason,
-            submittedAt: new Date().toISOString(),
+            evidence: evidenceText.trim(),
+            banReason: user?.banReason,
+            submittedAt,
+          },
+          telemetry: {
+            ...getTelemetry(),
+            reviewType: 'ban_appeal',
+            appealType,
+            appealLabel: selectedAppeal.label,
+            appealMessage: reviewText.trim(),
+            evidence: evidenceText.trim(),
+            banReason: user?.banReason,
+            bannedAt: user?.bannedAt,
+            bannedUntil: user?.bannedUntil,
+            submittedAt,
           },
         }),
       });
@@ -70,8 +272,13 @@ export const BannedUser = () => {
         throw new Error(data?.error || 'Failed to submit appeal');
       }
 
+      setReviewId(`R-${Date.now().toString(36).toUpperCase()}`);
       setReviewStatus('success');
       setReviewText('');
+      setEvidenceText('');
+      setConfirmTruth(false);
+      setConfirmContact(false);
+      localStorage.removeItem(REVIEW_DRAFT_KEY);
     } catch (error) {
       setReviewStatus('error');
       setReviewError(error instanceof Error ? error.message : 'Could not submit appeal.');
@@ -81,177 +288,240 @@ export const BannedUser = () => {
   };
 
   return (
-    <div className={`min-h-screen flex items-center justify-center p-4 ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4 py-5">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="w-full max-w-3xl"
+        className="w-full max-w-[460px]"
       >
-        <div className={`rounded-[32px] border ${theme === 'dark' ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200 bg-white'} shadow-2xl overflow-hidden`}>
-          <div className={`flex items-center justify-between gap-4 p-6 ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-100'}`}>
-            <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-rose-500">Account Alert</p>
-              <h1 className={`mt-3 text-4xl font-semibold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Banned from Reelsy</h1>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleTheme}
-              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${theme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-100 hover:border-slate-600' : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300'}`}
-            >
-              {theme === 'dark' ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-            </button>
-          </div>
-
-          <div className="grid gap-6 p-8 md:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-6">
-              <div className={`rounded-3xl p-6 ${theme === 'dark' ? 'bg-slate-950/80 border border-slate-800' : 'bg-slate-50 border border-slate-200'}`}>
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-rose-500/10 text-rose-500">
-                    <AlertCircle className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.24em] text-rose-500">Ban Notice</p>
-                    <h2 className={`mt-2 text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>You’re not able to access Reelsy right now.</h2>
-                  </div>
-                </div>
-
-                <p className={`mt-5 text-sm leading-6 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Your account was flagged for violating community guidelines. Please review the details below and submit an appeal if you believe this was a mistake.
-                </p>
+        <div className="overflow-hidden rounded-[34px] border border-border bg-background shadow-2xl">
+          <div className="px-5 pb-4 pt-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-2 text-[11px] font-bold text-foreground">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Account safety
               </div>
 
-              {user?.banReason && (
-                <div className={`rounded-3xl p-5 ${theme === 'dark' ? 'bg-slate-950/80 border border-slate-800' : 'bg-white border border-slate-200'}`}>
-                  <div className="flex items-start gap-3">
-                    <FileText className="h-5 w-5 text-rose-500 mt-1" />
-                    <div>
-                      <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Reason</p>
-                      <p className={`mt-2 text-sm leading-6 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{user.banReason}</p>
-                    </div>
+              <div className="flex items-center gap-2 rounded-full bg-secondary p-1">
+                <button
+                  type="button"
+                  onClick={handleToggleTheme}
+                  aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-background text-foreground shadow-sm"
+                >
+                  {theme === 'dark' ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => syncAccountStatus()}
+                  disabled={isSyncing}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+                  aria-label="Sync ban status"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Access restricted</p>
+              <h1 className="mt-2 text-[32px] font-extrabold leading-[1.05] tracking-normal text-foreground">
+                Your Reelsy account is banned.
+              </h1>
+              <p className="mt-3 text-[13px] leading-6 text-muted-foreground">
+                This page now keeps itself synced on refresh, tab focus, and visibility changes. Submit a detailed review request below if this looks wrong.
+              </p>
+            </div>
+          </div>
+
+          <div className="border-y border-secondary/70 bg-secondary/55 px-5 py-4">
+            <div className="grid grid-cols-3 gap-2">
+              {statusItems.map((item) => (
+                <div key={item.label} className="rounded-[20px] bg-background px-3 py-3">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 text-[12px] font-bold leading-4 text-foreground">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4 px-5 py-5">
+            <div className="rounded-[26px] border border-border bg-background p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-bold text-foreground">Ban details</p>
+                  <p className="mt-1 text-[13px] leading-6 text-muted-foreground">
+                    {user?.banReason || 'No public reason was attached. Support can still review the account history.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                {user?.bannedAt && (
+                  <div className="flex items-center gap-2 rounded-full bg-secondary px-3 py-2 text-[12px] font-semibold text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Banned {new Date(user.bannedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </div>
+                )}
+                {user?.bannedUntil && (
+                  <div className="flex items-center gap-2 rounded-full bg-secondary px-3 py-2 text-[12px] font-semibold text-muted-foreground">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    Ends {new Date(user.bannedUntil).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-border bg-background p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Review request</p>
+                  <h2 className="mt-1 text-[21px] font-extrabold text-foreground">Ask for a human review</h2>
+                </div>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
+                  <FileText className="h-4 w-4" />
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                <label className="flex items-center gap-3 rounded-full bg-secondary px-4 py-3">
+                  <UserRound className="h-4 w-4 text-muted-foreground" />
+                  <input
+                    value={accountId}
+                    onChange={(event) => setAccountId(event.target.value)}
+                    placeholder="username"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-foreground outline-none placeholder:text-muted-foreground/60"
+                  />
+                </label>
+
+                <label className="flex items-center gap-3 rounded-full bg-secondary px-4 py-3">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <input
+                    value={contactEmail}
+                    onChange={(event) => setContactEmail(event.target.value)}
+                    placeholder="email for review updates"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-foreground outline-none placeholder:text-muted-foreground/60"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {appealOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setAppealType(option.id)}
+                    className={`rounded-[20px] border px-3 py-3 text-left transition ${
+                      appealType === option.id
+                        ? 'border-foreground bg-foreground text-background'
+                        : 'border-border bg-secondary text-foreground'
+                    }`}
+                  >
+                    <p className="text-[12px] font-extrabold">{option.label}</p>
+                    <p className={`mt-1 text-[10px] leading-4 ${appealType === option.id ? 'text-background/70' : 'text-muted-foreground'}`}>
+                      {option.text}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 rounded-[22px] bg-secondary p-4">
+                <p className="text-[12px] font-bold text-foreground">Your explanation</p>
+                <textarea
+                  value={reviewText}
+                  onChange={(event) => setReviewText(event.target.value)}
+                  rows={5}
+                  placeholder="Tell the review team what happened, what should be checked, and why the ban should be reversed."
+                  className="mt-3 w-full resize-none bg-transparent text-[13px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/60"
+                />
+              </div>
+
+              <div className="mt-3 rounded-[22px] bg-secondary p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[12px] font-bold text-foreground">Evidence or extra context</p>
+                  <span className="rounded-full bg-background px-2 py-1 text-[10px] font-bold text-muted-foreground">
+                    {totalCharacters} chars
+                  </span>
+                </div>
+                <textarea
+                  value={evidenceText}
+                  onChange={(event) => setEvidenceText(event.target.value)}
+                  rows={3}
+                  placeholder="Add dates, links, usernames, or anything that helps support review faster."
+                  className="mt-3 w-full resize-none bg-transparent text-[13px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/60"
+                />
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <label className="flex items-start gap-3 rounded-[18px] bg-secondary px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={confirmTruth}
+                    onChange={(event) => setConfirmTruth(event.target.checked)}
+                    className="mt-1 h-4 w-4 accent-foreground"
+                  />
+                  <span className="text-[12px] font-semibold leading-5 text-muted-foreground">
+                    I confirm this review request is accurate and written by the account owner.
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-[18px] bg-secondary px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={confirmContact}
+                    onChange={(event) => setConfirmContact(event.target.checked)}
+                    className="mt-1 h-4 w-4 accent-foreground"
+                  />
+                  <span className="text-[12px] font-semibold leading-5 text-muted-foreground">
+                    Reelsy can contact me at this email about the review decision.
+                  </span>
+                </label>
+              </div>
+
+              {reviewStatus === 'success' && (
+                <div className="mt-4 rounded-[22px] border border-border bg-secondary p-4 text-[13px] leading-5 text-foreground">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <p className="font-semibold">Review sent{reviewId ? `: ${reviewId}` : ''}. We will review it shortly.</p>
                   </div>
                 </div>
               )}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                {user?.bannedAt && (
-                  <div className={`rounded-3xl p-5 ${theme === 'dark' ? 'bg-slate-950/80 border border-slate-800' : 'bg-white border border-slate-200'}`}>
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <Calendar className="h-4 w-4" />
-                      <span className="text-xs uppercase tracking-[0.24em]">Banned on</span>
-                    </div>
-                    <p className={`mt-3 text-base font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{new Date(user.bannedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                  </div>
-                )}
-
-                {user?.bannedUntil && (
-                  <div className={`rounded-3xl p-5 ${theme === 'dark' ? 'bg-slate-950/80 border border-slate-800' : 'bg-white border border-slate-200'}`}>
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <Calendar className="h-4 w-4" />
-                      <span className="text-xs uppercase tracking-[0.24em]">Expires</span>
-                    </div>
-                    <p className={`mt-3 text-base font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{new Date(user.bannedUntil).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className={`rounded-3xl p-5 ${theme === 'dark' ? 'bg-slate-950/80 border border-slate-800' : 'bg-slate-50 border border-slate-200'}`}>
-                <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">What happens next</h3>
-                <ul className={`mt-4 space-y-3 text-sm leading-6 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-                  <li>• You will remain on this page until the review completes.</li>
-                  <li>• Content stays private while the ban is active.</li>
-                  <li>• A support team member can restore access after review.</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className={`rounded-3xl p-6 ${theme === 'dark' ? 'bg-slate-950/90 border border-slate-800' : 'bg-white border border-slate-200'}`}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Review Request</p>
-                  <h2 className={`mt-2 text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Submit an appeal</h2>
+              {reviewStatus === 'error' && reviewError && (
+                <div className="mt-4 rounded-[22px] border border-border bg-secondary p-4 text-[13px] leading-5 text-foreground">
+                  {reviewError}
                 </div>
-                <div className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${theme === 'dark' ? 'border-slate-700 text-slate-200 bg-slate-900' : 'border-slate-200 text-slate-700 bg-slate-50'}`}>
-                  <Star className="h-4 w-4 text-amber-400" />
-                  <span>{rating} / 5</span>
-                </div>
-              </div>
+              )}
 
-              <div className="mt-6 space-y-4">
-                <div>
-                  <label htmlFor="ban-appeal" className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Why should the ban be reviewed?</label>
-                  <textarea
-                    id="ban-appeal"
-                    value={reviewText}
-                    onChange={(event) => setReviewText(event.target.value)}
-                    rows={6}
-                    placeholder="Explain your situation and why this ban should be reviewed."
-                    className={`mt-3 w-full rounded-3xl border px-4 py-3 text-sm outline-none transition ${theme === 'dark' ? 'border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400'}`}
-                  />
-                </div>
+              <div className="mt-4 grid gap-3">
+                <Button
+                  onClick={handleSubmitReview}
+                  disabled={!canSubmit}
+                  className="w-full rounded-full bg-foreground py-3 font-extrabold text-background"
+                >
+                  {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {isSubmitting ? 'Sending review...' : 'Send review'}
+                </Button>
 
-                <div className="space-y-3">
-                  <div className={`flex items-center justify-between gap-3 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-                    <p>Appeal strength</p>
-                    <div className="flex items-center gap-2">
-                      {[1, 2, 3, 4, 5].map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setRating(value)}
-                          className={`rounded-full p-2 transition ${rating >= value ? 'bg-amber-400 text-slate-950' : theme === 'dark' ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}
-                        >
-                          <Star className="h-4 w-4" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {reviewStatus === 'success' && (
-                    <div className={`rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-900 ${theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : ''}`}>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4" />
-                        <p>Your appeal request has been submitted. We will review it shortly.</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {reviewStatus === 'error' && reviewError && (
-                    <div className={`rounded-3xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 ${theme === 'dark' ? 'bg-rose-500/10 text-rose-200 border-rose-600/30' : ''}`}>
-                      {reviewError}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid gap-3 pt-2">
-                  <Button
-                    onClick={handleSubmitReview}
-                    disabled={isSubmitting}
-                    className="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-3xl transition"
-                  >
-                    {isSubmitting ? 'Sending appeal...' : 'Send Appeal Request'}
-                  </Button>
-
-                  <Button
-                    onClick={handleLogout}
-                    variant="outline"
-                    className={`w-full rounded-3xl py-3 font-semibold ${theme === 'dark' ? 'border-slate-700 text-slate-200 hover:bg-slate-900' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-                  >
-                    Return to login
-                  </Button>
-                </div>
+                <Button
+                  onClick={handleLogout}
+                  variant="outline"
+                  className="w-full rounded-full border-border py-3 font-extrabold text-foreground"
+                >
+                  Return to login
+                </Button>
               </div>
             </div>
           </div>
         </div>
 
-        <div className={`mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-slate-600 ${theme === 'dark' ? 'border-slate-800 bg-slate-950 text-slate-300' : ''}`}>
+        <div className="mt-4 grid grid-cols-[auto_1fr] gap-3 rounded-[24px] bg-secondary p-4 text-[12px] leading-6 text-muted-foreground">
+          <Fingerprint className="mt-1 h-4 w-4 text-foreground" />
           <p>
-            Reelsy monitors accounts closely. If this ban was issued in error, appeal with as much detail as possible so the review team can resolve it faster.
-          </p>
-          <p className="mt-3">
-            Standard review time is up to 24 hours. You will be contacted at <span className="font-semibold">{user?.email}</span>.
+            Reelsy saves your appeal draft locally and quietly rechecks account status when the browser refreshes, focuses, or becomes visible again.
           </p>
         </div>
       </motion.div>

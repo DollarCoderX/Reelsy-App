@@ -25,6 +25,7 @@ import { ShieldAlert, Globe2 } from "lucide-react";
 import { getSession } from "@/lib/supabase-client";
 
 const queryClient = new QueryClient();
+const RESTRICTION_STORAGE_KEY = 'reelsy_account_restriction';
 
 function AppContent() {
   const { appPhase, setAppPhase, setUser, user } = useAppContext();
@@ -39,6 +40,8 @@ function AppContent() {
       setAppPhase('banned');
     } else if (user.isSuspended && appPhase !== 'account-suspended') {
       setAppPhase('account-suspended');
+    } else if (!user.isBanned && !user.isSuspended) {
+      sessionStorage.removeItem(RESTRICTION_STORAGE_KEY);
     }
   }, [user, appPhase, setAppPhase]);
 
@@ -56,6 +59,21 @@ function AppContent() {
           setAppPhase('main');
         }
         return;
+      }
+
+      const storedRestriction = sessionStorage.getItem(RESTRICTION_STORAGE_KEY);
+      if (storedRestriction) {
+        try {
+          const restriction = JSON.parse(storedRestriction);
+          if (restriction?.user && (restriction.phase === 'banned' || restriction.phase === 'account-suspended')) {
+            setUser(restriction.user);
+            setAppPhase(restriction.phase);
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to restore account restriction:', e);
+          sessionStorage.removeItem(RESTRICTION_STORAGE_KEY);
+        }
       }
 
       // Check for persisted user in localStorage (from previous OAuth)
