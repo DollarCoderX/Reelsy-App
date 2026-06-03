@@ -222,9 +222,9 @@ export const BannedUser = () => {
       window.removeEventListener('focus', handleWake);
       document.removeEventListener('visibilitychange', handleWake);
     };
-    // Run on mount and when the remembered account changes.
+    // Run once on mount; manual sync uses the latest form values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId]);
+  }, []);
 
   const handleSubmitReview = async () => {
     if (!canSubmit) {
