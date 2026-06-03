@@ -1,0 +1,27 @@
+{
+  "_id": {
+    "$oid": "6a1ee6182f836b28a1806ef8"
+  },
+  "userEmail": "praisejiro43210@gmail.com",
+  "username": "ejiropraisezgxxto",
+  "displayName": "Ejiro Praise",
+  "age": 0,
+  "interests": [],
+  "supabaseId": "4bb546de-db86-4d6e-a286-dd00ef185976",
+  "authProvider": "google",
+  "createdAt": {
+    "$date": "2026-06-02T14:18:00.342Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-03T11:52:45.823Z"
+  },
+  "profileImage": "https://lh3.googleusercontent.com/a/ACg8ocL4tdh6wbtZy2u3TZLwIZQhACfE5snZ934OqLLh_O8kSMX3VbE=s96-c",
+  "isBanned": true,
+  "banReason": "fraudster",
+  "bannedAt": {
+    "$date": "2026-06-02T14:18:00.342Z"
+  },
+  "bannedUntil": {
+    "$date": "2027-06-03T11:52:45.823Z"
+  }
+}

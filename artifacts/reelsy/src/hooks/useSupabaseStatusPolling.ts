@@ -13,7 +13,7 @@ export const useSupabaseStatusPolling = () => {
   const lastCheckRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!user?.username || !user?.supabaseId) {
+    if (!user?.username) {
       // Stop polling if no user logged in
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -150,7 +150,9 @@ export const useSupabaseStatusPolling = () => {
             if (profileData.displayName !== user.nickname ||
                 profileData.age !== user.age ||
                 profileData.interests !== user.interests ||
-                profileData.profileImage !== user.avatar) {
+                profileData.profileImage !== user.avatar ||
+                profileData.isBanned !== user.isBanned ||
+                profileData.banReason !== user.banReason) {
               console.log('Profile updated from server');
               setUser({
                 ...user,
@@ -160,6 +162,8 @@ export const useSupabaseStatusPolling = () => {
                 avatar: profileData.profileImage || user.avatar,
                 isBanned: profileData.isBanned || false,
                 banReason: profileData.banReason,
+                bannedUntil: profileData.bannedUntil,
+                bannedAt: profileData.bannedAt,
               });
             }
           }
@@ -173,17 +177,32 @@ export const useSupabaseStatusPolling = () => {
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkSupabaseStatus();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      checkSupabaseStatus();
+    };
+
     // Initial check immediately
     checkSupabaseStatus();
 
     // Then poll every 10 seconds
     pollingIntervalRef.current = setInterval(checkSupabaseStatus, 10000);
 
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user?.username, user?.supabaseId, setUser, setAppPhase]);
 
