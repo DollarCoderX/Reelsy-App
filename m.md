@@ -1,7 +1,0 @@
-fist for the post where we have add your thoughts make the text hange like up to 6 e.g share your ideas and more clean, in the home the up part where the user has thre pfp image and post text uder the plus icon is inside the circle make it come out clean i will send u a image, also add up to 30 tags so user can jus be like # cat and the options shows like the way it is clean here-(const TRENDING_TAGS = [
-  "#design", "#afrobeats", "#Lagos", "#AI", "#minimalism",
-  "#creativity", "#startup", "#music", "#fashion", "#film",
-  "#wellness", "#tech", "#culture", "#fyp", "#foryoupage", "#broadcast", "#reelsy", "#photography", "#travel",
-];)
-and in the home feed does tap when they tap it it takes them to the post where th tags are used clean, also i tried osting video it didnt work and when user tap video it open a clean full screen to watch the video with icons like save, like and more same with image, and allow user to post 1-2 image for free why premium is 4 and premium 5 so alows user to swipe to see other image also in the post after @ add a music icon when tap using open source 2 user can search and put music either by taping it and it opens a sub sheat with a search bar and list of popular songs down or in the post just do //kpop//(if the song is found it wil turn green but if not red, and if green or red when post the tet wont sow jus te audio) which in th post the y will see a like a speaker icon which they can use to tap to stop music or untap to hear music
-also when i pst i see @you instead of my like usename 
