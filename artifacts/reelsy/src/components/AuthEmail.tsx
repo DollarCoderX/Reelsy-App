@@ -1,27 +1,26 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAppContext } from "@/context/AppContext";
-import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Loader2, Mail } from "lucide-react";
 import { signInWithGoogle } from "@/lib/supabase-client";
 
 const AuthEmail = () => {
   const { setAppPhase, setAuthEmail } = useAppContext();
-  const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2500);
+  };
 
   const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
   const handleNext = async () => {
     if (!isValidEmail(email) || isLoading) return;
     setIsLoading(true);
-    const isValid = await ip.checkConnection();
-    if (!isValid) {
-      setIsLoading(false);
-      return;
-    }
     
     try {
       const response = await fetch("/api/auth/send-otp", {
@@ -39,21 +38,13 @@ const AuthEmail = () => {
         }
 
         if (data?.error === "TEMP_EMAIL_BLOCKED") {
-          toast({
-            title: "Sorry",
-            description: data?.message || "Sorry, you can’t use a temporary email to sign up.",
-            variant: "destructive",
-          });
+          showToast(data?.message || "Can't use a temporary email to sign up");
           return;
         }
         // Handle rate limiting
         if (response.status === 429) {
           const cooldownMinutes = data?.cooldownMinutes || "some";
-          toast({
-            title: "Too Many Requests",
-            description: `You've exceeded the OTP request limit. Please try again in ${cooldownMinutes} minute(s).`,
-            variant: "destructive",
-          });
+          showToast(`Too many attempts. Try again in ${cooldownMinutes} minute(s)`);
           return;
         }
         throw new Error("Failed to send OTP");
@@ -62,7 +53,7 @@ const AuthEmail = () => {
       setAuthEmail(email);
       setAppPhase("auth-otp");
     } catch (err) {
-      toast({ title: "Error😪", description: "Failed to send code. Please try again later.", variant: "destructive" });
+      showToast("Failed to send code. Try again later");
     } finally {
       setIsLoading(false);
     }
@@ -75,11 +66,7 @@ const AuthEmail = () => {
       await signInWithGoogle();
       // Supabase will redirect to auth callback URL
     } catch (err) {
-      toast({
-        title: "Error",
-        description: "Failed to sign in with Google. Please try again.",
-        variant: "destructive",
-      });
+      showToast("Failed to sign in with Google");
       setGoogleLoading(false);
     }
   };
@@ -176,6 +163,15 @@ const AuthEmail = () => {
           {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Verifying...</> : "Next"}
         </motion.button>
       </motion.div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-foreground text-background px-5 py-2.5 rounded-full text-[12px] font-medium shadow-lg z-40 whitespace-nowrap">
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
