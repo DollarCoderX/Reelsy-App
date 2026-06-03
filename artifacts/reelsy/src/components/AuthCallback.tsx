@@ -29,7 +29,7 @@ const AuthCallback = () => {
         const supabaseUser = session.user;
 
         // Send to backend to create/update user
-        const response = await fetch('/api/auth/register/google', {
+        const response = await fetch('/api/auth/signin-google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

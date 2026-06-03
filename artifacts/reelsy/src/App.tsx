@@ -79,7 +79,7 @@ function AppContent() {
         const supabaseUser = session.user;
 
         // Call backend to complete registration/login
-        const response = await fetch('/api/auth/register/google', {
+        const response = await fetch('/api/auth/signin-google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

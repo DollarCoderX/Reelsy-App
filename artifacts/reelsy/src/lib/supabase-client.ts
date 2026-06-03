@@ -9,8 +9,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const signInWithGoogle = async () => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}`,
+      options: {
+      // Important for Vercel/production: Supabase OAuth must redirect to your deployed domain.
+      redirectTo:
+        (import.meta.env.VITE_SITE_URL as string | undefined)?.trim() ||
+        `${window.location.origin}`,
       scopes: 'profile email',
     },
   });
