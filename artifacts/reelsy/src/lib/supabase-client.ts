@@ -13,13 +13,16 @@ export const signInWithGoogle = async () => {
       // Production must never redirect back to localhost.
       redirectTo: (() => {
         const siteUrl = (import.meta.env.VITE_SITE_URL as string | undefined)?.trim();
+
+        // In production (and also when SITE_URL is provided), always use the deployed URL.
         if (import.meta.env.PROD) {
           if (!siteUrl) {
             throw new Error('VITE_SITE_URL is required in production for Supabase OAuth redirectTo');
           }
           return siteUrl;
         }
-        // Dev fallback is fine.
+
+        // In dev, fallback to current origin.
         return siteUrl || window.location.origin;
       })(),
       scopes: 'profile email',
