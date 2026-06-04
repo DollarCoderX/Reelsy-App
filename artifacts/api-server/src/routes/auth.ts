@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { sendOTP, verifyOTP } from '../lib/otp';
-import { hashPassword, verifyPassword, generateToken, generateUniqueUsername, findAvailableUsername } from '../lib/auth-utils';
+import { hashPassword, verifyPassword, generateToken, generateUniqueUsername, generateBaseUsername, findAvailableUsername } from '../lib/auth-utils';
 import { getUsersCollection, ReelsyUser } from '../lib/mongodb';
 import { createSupabaseUser, getSupabaseUser, updateSupabaseUser, initSupabase, checkSupabaseUserStatus, banUserViaAdmin, unbanUserViaAdmin } from '../lib/supabase';
 import { isSuspiciousEmail, addStrike, sendSuspensionReviewEmail } from '../lib/suspension';
@@ -258,7 +258,7 @@ router.post('/signin-email', async (req, res) => {
 // Google OAuth - register or login
 router.post('/signin-google', async (req, res) => {
   try {
-    const { accessToken, displayName, birthday, location, profileImage } = req.body;
+    const { accessToken, displayName, birthday, age: providedAge, location, profileImage } = req.body;
 
     if (!accessToken || !displayName) {
       return res.status(400).json({ error: 'Supabase access token and displayName are required' });
@@ -326,21 +326,22 @@ router.post('/signin-google', async (req, res) => {
       });
     }
 
-    // Generate unique username from display name
-    const baseUsername = generateUniqueUsername(displayName);
+    // Keep the Google display-name username when it is available; only change it when MongoDB has a collision.
+    const baseUsername = generateBaseUsername(displayName) || generateUniqueUsername(displayName);
     const username = await findAvailableUsername(baseUsername, usersCollection);
 
-    // Calculate age from birthday
-    const birthDate = new Date(birthday);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+    let age: number | undefined = typeof providedAge === 'number' ? providedAge : undefined;
+    if (age === undefined && birthday) {
+      const birthDate = new Date(birthday);
+      if (!Number.isNaN(birthDate.getTime())) {
+        const today = new Date();
+        age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+      }
     }
-
-    // Check for suspicious email domain
-    const emailCheck = isSuspiciousEmail(email);
 
     // Create MongoDB user with Google auth (no password)
     const mongoUser: ReelsyUser = {
@@ -356,12 +357,8 @@ router.post('/signin-google', async (req, res) => {
       banReason: undefined,
       bannedAt: undefined,
       bannedUntil: undefined,
-      strikeCount: emailCheck.suspicious ? 1 : 0,
-      strikes: emailCheck.suspicious ? [{
-        type: emailCheck.reason || 'suspicious_email',
-        timestamp: new Date(),
-        details: `Suspicious email domain detected during Google OAuth: ${emailCheck.reason}`,
-      }] : [],
+      strikeCount: 0,
+      strikes: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };

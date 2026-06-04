@@ -58,12 +58,8 @@ const POST_AI_CONTEXT = `
 You are Reelsy AI Assistant. You are a friendly, smart, and helpful companion on Reelsy. You can chat about anything, answer questions, or help the user brainstorm, write, and refine social media posts. Keep replies concise, engaging, natural, and helpful. You can use hashtags and emojis.
 `;
 
-const pollinationsText = async (prompt: string) => {
-  const response = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`);
-  if (!response.ok) throw new Error("Pollinations request failed");
-  const text = await response.text();
-  return text.trim().replace(/^["']|["']$/g, "");
-};
+const buildPollinationsImageUrl = (prompt: string) =>
+  `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Date.now()}`;
 
 const PreviewContent = ({ text }: { text: string }) => {
   if (!text) return null;
@@ -108,9 +104,10 @@ const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
   const [aiPrevContent, setAiPrevContent] = useState<string | null>(null);
   const [aiUsed, setAiUsed] = useState(false);
   const [aiChatOpen, setAiChatOpen] = useState(false);
-  const [aiChatMessages, setAiChatMessages] = useState<{ id: number; from: "user" | "ai"; text: string }[]>([]);
+  const [aiChatMessages, setAiChatMessages] = useState<{ id: number; from: "user" | "ai"; text: string; imageUrl?: string }[]>([]);
   const [aiChatInput, setAiChatInput] = useState("");
   const [isAiChatLoading, setIsAiChatLoading] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [aiNotice, setAiNotice] = useState("");
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageRef = useRef<HTMLInputElement>(null);
@@ -184,12 +181,12 @@ const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
     if (musicMatch && !selectedMusic) {
       if (searchTimeout.current) clearTimeout(searchTimeout.current);
       searchTimeout.current = setTimeout(() => {
-        searchMusic(musicMatch[1]);
+        searchMusic(musicMatch[1], true);
       }, 600);
     }
   };
 
-  const searchMusic = async (q: string) => {
+  const searchMusic = async (q: string, autoSelect = false) => {
     if (!q.trim()) return;
     setIsSearchingMusic(true);
     try {
@@ -199,10 +196,8 @@ const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
       const results = data.results || [];
       setMusicResults(results);
 
-      // Check if it was triggered by the //song name// syntax and we should auto-select
-      if (results.length > 0) {
+      if (autoSelect && results.length > 0) {
         setSelectedMusic({ title: results[0].name, artist: results[0].artist_name, url: results[0].audio });
-        // Strip the //song name// syntax from the content
         setContent((c) => c.replace(/\/\/([^/]+)\/\//, "").trim());
       }
     } catch (e) {
@@ -425,12 +420,33 @@ ${input}`);
     setAiUsed(true);
   };
 
+  useEffect(() => {
+    if (showMusicSheet && musicResults.length === 0 && !isSearchingMusic) {
+      searchMusic("afrobeats");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMusicSheet]);
+
   const sendAiChat = async (text: string) => {
     if (!text.trim() || isAiChatLoading) return;
     const prompt = text.trim();
     setAiChatMessages((p) => [...p, { id: Date.now(), from: "user", text: prompt }]);
     setAiChatInput("");
     setIsAiChatLoading(true);
+    const wantsImage = /\b(image|photo|picture|generate|draw|create|imagine)\b/i.test(prompt);
+    if (wantsImage) {
+      setAiChatMessages((p) => [
+        ...p,
+        {
+          id: Date.now() + 1,
+          from: "ai",
+          text: "I made an image for your post. Tap Use image to attach it.",
+          imageUrl: buildPollinationsImageUrl(prompt),
+        },
+      ]);
+      setIsAiChatLoading(false);
+      return;
+    }
     const reply = await generatePostIdea(prompt);
     setAiChatMessages((p) => [...p, { id: Date.now() + 1, from: "ai", text: reply }]);
     setIsAiChatLoading(false);
@@ -438,6 +454,39 @@ ${input}`);
     {
       const reply = `Idea: ${text.trim().charAt(0).toUpperCase() + text.trim().slice(1)} — try starting with a personal anecdote and end with a question to boost engagement.`;
       setAiChatMessages((p) => [...p, { id: p.length + 1, from: "ai", text: reply }]);
+    }
+  };
+
+  const attachAiImage = async (imageUrl: string) => {
+    if (mediaType === "video") {
+      setAiNotice("Remove the video before attaching an AI image.");
+      return;
+    }
+    if (mediaUrls.length >= limit) {
+      setAiNotice(`Your ${tier} plan only allows up to ${limit} images.`);
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error("Image generation failed");
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      setMediaUrls((p) => [...p, dataUrl]);
+      setMediaType("image");
+      setAiUsed(true);
+      setAiChatOpen(false);
+    } catch (error) {
+      console.error("AI image attach failed", error);
+      setAiNotice("Could not attach the generated image. Try again.");
+    } finally {
+      setIsGeneratingImage(false);
     }
   };
   
@@ -493,13 +542,22 @@ ${input}`);
         onChange={(e) => e.target.files?.[0] && handleVideo(e.target.files[0])} />
 
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 pt-5 pb-3">
-        <motion.button whileTap={{ scale: 0.9 }} onClick={onClose}
-          className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
-          <X className="w-4 h-4" />
-        </motion.button>
-        <p className="font-bold text-[15px]">{resharePost ? "Repost" : "New Post"}</p>
-        <div className="flex items-center gap-2">
+      <div className="shrink-0 border-b border-secondary/50 px-4 pt-5 pb-3">
+        <div className="grid grid-cols-[36px_1fr_auto] items-center gap-3">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={onClose}
+            className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
+            <X className="w-4 h-4" />
+          </motion.button>
+          <p className="min-w-0 text-center font-bold text-[15px] truncate">{resharePost ? "Repost" : "New Post"}</p>
+          <motion.button whileTap={{ scale: 0.95 }} onClick={handlePost} disabled={!canPost || isPosting}
+            className="px-4 py-2 rounded-full bg-foreground text-background text-[13px] font-bold disabled:opacity-40 flex items-center gap-1.5 shrink-0">
+            {isPosting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {isPosting 
+              ? (audience === "Draft" ? "Drafting..." : "Posting...") 
+              : (audience === "Draft" ? "Draft" : "Post")}
+          </motion.button>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-2">
           <div className="relative">
             <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowAudience(!showAudience)}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-secondary text-[11px] font-semibold">
@@ -532,14 +590,6 @@ ${input}`);
             }`}>
             {!canUsePostAI && <Crown className="w-3 h-3" />}
             Ai
-          </motion.button>
-
-          <motion.button whileTap={{ scale: 0.95 }} onClick={handlePost} disabled={!canPost || isPosting}
-            className="px-4 py-1.5 rounded-full bg-foreground text-background text-[13px] font-bold disabled:opacity-40 flex items-center gap-1.5">
-            {isPosting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {isPosting 
-              ? (audience === "Draft" ? "Drafting..." : "Posting...") 
-              : (audience === "Draft" ? "Draft" : "Post")}
           </motion.button>
         </div>
       </div>
@@ -896,12 +946,23 @@ ${input}`);
                         <span className="mb-1 inline-flex rounded-full bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-bold text-violet-600">Ai</span>
                       )}
                       <p className="text-[13px]">{m.text}</p>
+                      {m.imageUrl && (
+                        <img src={m.imageUrl} alt="AI generated" className="mt-2 aspect-square w-48 max-w-full rounded-2xl object-cover" />
+                      )}
                       {m.from === 'ai' && (
-                        <button onClick={() => {
-                          setContent((c) => (c ? c + '\n' : '') + m.text);
-                          setAiUsed(true);
-                          setAiChatOpen(false);
-                        }} className="mt-2 text-[12px] font-semibold text-violet-600">Use in post</button>
+                        <div className="mt-2 flex flex-wrap gap-3">
+                          <button onClick={() => {
+                            setContent((c) => (c ? c + '\n' : '') + m.text);
+                            setAiUsed(true);
+                            setAiChatOpen(false);
+                          }} className="text-[12px] font-semibold text-violet-600">Use text</button>
+                          {m.imageUrl && (
+                            <button disabled={isGeneratingImage} onClick={() => attachAiImage(m.imageUrl!)}
+                              className="text-[12px] font-semibold text-blue-600 disabled:opacity-50">
+                              {isGeneratingImage ? "Attaching..." : "Use image"}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

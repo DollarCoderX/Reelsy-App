@@ -46,15 +46,9 @@ export function verifyToken(token: string): any {
 }
 
 export function generateUniqueUsername(displayName: string): string {
-  // Sanitize display name: remove spaces, special chars, keep only alphanumeric
-  const baseName = displayName
-    .toLowerCase()
-    .replace(/\s+/g, '') // Remove spaces
-    .replace(/[^a-z0-9]/g, '') // Remove special chars
-    .slice(0, 15); // Max 15 chars
+  const baseName = generateBaseUsername(displayName);
 
   if (!baseName) {
-    // If name is empty after sanitization, use random
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
     for (let i = 0; i < 8; i++) {
@@ -63,7 +57,6 @@ export function generateUniqueUsername(displayName: string): string {
     return result;
   }
 
-  // Generate shuffled suffix: mix of numbers and letters
   const suffixChars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let suffix = '';
   for (let i = 0; i < 6; i++) {
@@ -71,6 +64,16 @@ export function generateUniqueUsername(displayName: string): string {
   }
 
   return `${baseName}${suffix}`;
+}
+
+export function generateBaseUsername(displayName: string): string {
+  const baseName = displayName
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 15);
+
+  return baseName;
 }
 
 export async function findAvailableUsername(

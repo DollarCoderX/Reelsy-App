@@ -26,6 +26,8 @@ import {
 import { useAppContext } from "@/context/AppContext";
 import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import { hasSeenFeatureIntro, markFeatureIntroSeen } from "@/lib/featureIntro";
+import { generateText } from "@/lib/ai";
+import UserProfile from "@/components/UserProfile";
 
 
 interface ChatTabProps { onNavVisible?: (v: boolean) => void; }
@@ -63,10 +65,20 @@ interface ChatThread {
   isReelsy?: boolean;
   isSMS?: boolean;
   isReelsyBot?: boolean;
+  isMeraAi?: boolean;
   botId?: string;
   pinned?: boolean;
   isJoinable?: boolean;
 }
+
+const buildPollinationsImageUrl = (prompt: string) =>
+  `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Date.now()}`;
+
+const MeraLogo = ({ className = "w-full h-full" }: { className?: string }) => (
+  <div className={`${className} rounded-full bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,.9),rgba(255,255,255,.24)_24%,rgba(99,102,241,.42)_52%,rgba(14,165,233,.36))] border border-white/40 shadow-inner flex items-center justify-center overflow-hidden`}>
+    <div className="h-1/2 w-1/2 rounded-full bg-white/25 backdrop-blur-md border border-white/40" />
+  </div>
+);
 
 // ---- IMPROVED Animated emoji map ----
 const SPECIAL_EMOJIS: Record<string, object> = {
@@ -2098,6 +2110,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
   const buildInitialThreads = (): ChatThread[] => {
     const base: ChatThread[] = [
       { id: "reelsy-official", name: "Reelsy", lastMessage: "Welcome to Reelsy! 🎉", time: "now", unread: 1, isGroup: false, isReelsy: true, pinned: true },
+      { id: "mera-ai", name: "Mera", lastMessage: "Reelsy AI is ready", time: "now", unread: 0, isGroup: false, isMeraAi: true, pinned: true },
       { id: "reelsy-bot", name: "ReelsyBot", lastMessage: "Send .menu to see all commands", time: "now", unread: 1, isGroup: false, isReelsyBot: true, pinned: true },
       { id: "mock-group-1", name: "Creators Chain 🎬", lastMessage: "Sarah: Let's launch this tonight! 🔥🔥🔥", time: "25m", unread: 5, isGroup: true, members: ["kabil", "sarah", "micheal", "jacob"], pinned: true },
       ...BOTS.map((b) => ({
@@ -2199,6 +2212,11 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
   const [showCatalogueSelector, setShowCatalogueSelector] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showCameraCapture, setShowCameraCapture] = useState(false);
+  const [profileInfoBot, setProfileInfoBot] = useState<any>(null);
+  const [chatNotice, setChatNotice] = useState("");
+  const voiceRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceStartedAtRef = useRef(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -2241,6 +2259,15 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
         ];
       });
       init["reelsy-official"] = [...REELSY_MSGS];
+      init["mera-ai"] = [
+        {
+          id: 1,
+          fromName: "Mera",
+          content: "Hi, I am Mera, Reelsy AI. Ask me to write, brainstorm, explain, plan, or generate an image.",
+          time: "now",
+          isMine: false,
+        },
+      ];
       init["reelsy-bot"] = [
         { id: 1, fromName: "ReelsyBot", content: "👋 Hey! I'm ReelsyBot V5 — your AI-powered assistant.\n\nSend .menu to see all my commands. I can tell jokes, give advice, do math, check weather, and more! ⚡", time: "9:00 AM", isMine: false },
       ];
@@ -2452,6 +2479,34 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     setThreads((p) => p.map((t) => t.id === activeId ? { ...t, lastMessage: text || "📄 File shared", time: "now" } : t));
     if (!overrideText) setInput("");
     setReplyTo(null);
+
+    if (activeThread?.isMeraAi) {
+      setIsTyping(true);
+      setTimeout(async () => {
+        const wantsImage = /\b(image|photo|picture|generate|draw|create|imagine)\b/i.test(text);
+        const reply: ChatMessage = wantsImage
+          ? {
+              id: Date.now() + 1,
+              fromName: "Mera",
+              content: "I generated this image for you.",
+              time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              isMine: false,
+              mediaType: "image",
+              mediaUrl: buildPollinationsImageUrl(text),
+            }
+          : {
+              id: Date.now() + 1,
+              fromName: "Mera",
+              content: await generateText(`Reply as Mera, Reelsy's AI assistant. Be helpful, concise, and practical.\n\nUser: ${text}`, 260),
+              time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              isMine: false,
+            };
+        setIsTyping(false);
+        setMessages((p) => ({ ...p, [activeId]: [...(p[activeId] || []), reply] }));
+        setThreads((p) => p.map((t) => t.id === activeId ? { ...t, lastMessage: reply.mediaType === "image" ? "Generated an image" : reply.content.slice(0, 44), time: "now" } : t));
+      }, 500);
+      return;
+    }
 
     // ReelsyBot command handling
     if (activeThread?.isReelsyBot) {
@@ -2795,6 +2850,8 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                       <div className="w-11 h-11 rounded-full overflow-hidden bg-secondary">
                         {thread.isReelsy ? (
                           <img src={reelsyLogo} alt="Reelsy" className="w-full h-full object-cover" />
+                        ) : thread.isMeraAi ? (
+                          <MeraLogo />
                         ) : thread.isSMS ? (
                           <div className="w-full h-full bg-green-500/15 flex items-center justify-center">
                             <MessageSquare className="w-5 h-5 text-green-600" />
@@ -2830,6 +2887,9 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                             <div className="shrink-0 w-3.5 h-3.5 rounded-full bg-foreground flex items-center justify-center">
                               <Check className="w-2 h-2 text-background" strokeWidth={3} />
                             </div>
+                          )}
+                          {thread.isMeraAi && (
+                            <div className="shrink-0 px-1 rounded-sm bg-violet-500/15 text-violet-600 text-[8px] font-bold">AI</div>
                           )}
                           {thread.isSMS && (
                             <div className="shrink-0 px-1 rounded-sm bg-green-500/15 text-green-600 text-[8px] font-bold">SMS</div>
@@ -3986,5 +4046,3 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
 };
 
 export default ChatTab;
-
-

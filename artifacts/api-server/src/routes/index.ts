@@ -4,6 +4,7 @@ import authRouter from "./auth";
 import verificationRouter from "./verification";
 import mediaRouter from "./media";
 import engagementRouter from "./engagement";
+import groqRouter from "./groq";
 
 const router: IRouter = Router();
 
@@ -12,6 +13,7 @@ router.use("/auth", authRouter);
 router.use("/engagement", engagementRouter);
 router.use(verificationRouter);
 router.use(mediaRouter);
+router.use(groqRouter);
 
 router.get("/music/search", async (req, res) => {
   const { q } = req.query;

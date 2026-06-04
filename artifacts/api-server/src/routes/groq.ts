@@ -1,0 +1,47 @@
+import { Router, type IRouter } from "express";
+
+const router: IRouter = Router();
+
+router.post("/groq", async (req, res) => {
+  try {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ error: "GROQ_API_KEY is not configured" });
+    }
+
+    const { prompt, max_tokens = 220, model = process.env.GROQ_MODEL || "llama-3.1-8b-instant" } = req.body || {};
+    if (!prompt || typeof prompt !== "string") {
+      return res.status(400).json({ error: "prompt is required" });
+    }
+
+    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: "You are Mera, Reelsy's helpful AI assistant. Be concise, warm, and useful." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.7,
+        max_tokens: Math.min(Number(max_tokens) || 220, 1000),
+      }),
+    });
+
+    const data = await groqRes.json();
+    if (!groqRes.ok) {
+      return res.status(groqRes.status).json({ error: "Groq request failed", details: data });
+    }
+
+    const text = data?.choices?.[0]?.message?.content?.trim() || "";
+    return res.json({ text });
+  } catch (error) {
+    req.log?.error?.(error, "Groq route failed");
+    return res.status(500).json({ error: "Groq request failed" });
+  }
+});
+
+export default router;
