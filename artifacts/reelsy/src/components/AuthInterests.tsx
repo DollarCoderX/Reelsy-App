@@ -21,7 +21,7 @@ const AuthInterests = () => {
   const handleNext = () => {
     if (selected.length < 3) return;
     if (user) setUser({ ...user, interests: selected });
-    setAppPhase("auth-friends");
+    setAppPhase("auth-discover");
   };
 
   return (

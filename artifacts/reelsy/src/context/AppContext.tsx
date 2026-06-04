@@ -4,7 +4,8 @@ import { useIPRestriction, IPRestrictionHook } from "@/hooks/useIPRestriction";
 export type AppPhase =
   | "splash" | "welcome" | "auth-tos" | "auth-email"
   | "auth-otp" | "auth-password" | "auth-profile" | "auth-interests"
-  | "auth-friends" | "auth-permissions" | "account-suspended" | "banned" | "main";
+  | "auth-discover" | "auth-friends" | "auth-permissions" | "workspace-setup"
+  | "account-suspended" | "banned" | "main";
 
 export type Theme = "light" | "dark";
 export type Tier = "free" | "premium" | "premium+" | "gold";

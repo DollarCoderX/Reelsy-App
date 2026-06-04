@@ -257,7 +257,7 @@ export const BOT_POSTS: BotPost[] = [
     reposts: 5,
     views: 3400,
     time: "1h",
-  },
+  }
 ];
 
 export const BOT_INTRO_MESSAGES: BotMessage[] = [

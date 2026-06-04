@@ -75,7 +75,7 @@ const AuthPermissions = () => {
 
             const shouldRegister = !!authEmail && !!authPassword;
             if (!shouldRegister) {
-              setAppPhase('main');
+              setAppPhase('workspace-setup');
               return;
             }
 
@@ -121,7 +121,7 @@ const AuthPermissions = () => {
 
               toast({ title: 'Welcome to Reelsy', description: 'Your account has been created.', variant: 'default' });
               setAuthPassword(null);
-              setAppPhase('main');
+              setAppPhase('workspace-setup');
             } catch (error) {
               toast({ title: 'Registration failed', description: error instanceof Error ? error.message : 'Unable to create account.', variant: 'destructive' });
               console.error('Registration error:', error);

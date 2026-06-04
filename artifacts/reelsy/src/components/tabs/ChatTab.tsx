@@ -1727,19 +1727,57 @@ const QuickRepliesMenu = ({
 };
 
 
-// Media Editor Component for image/video with text overlay
-const MediaEditor = ({ media, tier, onSend, onClose, requestFeatureIntro }: {
-  media: { type: string; preview?: string; file?: File };
+// Media Editor Component for multiple image/video items
+const MediaEditor = ({ mediaList, setMediaList, tier, onSend, onClose, requestFeatureIntro }: {
+  mediaList: { type: string; preview: string; file?: File; caption?: string; viewOnce?: boolean }[];
+  setMediaList: React.Dispatch<React.SetStateAction<{ type: string; preview: string; file?: File; caption?: string; viewOnce?: boolean }[]>>;
   tier: string;
-  onSend: (text: string, viewOnce: boolean) => void;
+  onSend: (items: { type: string; preview: string; file?: File; caption?: string; viewOnce?: boolean }[]) => void;
   onClose: () => void;
   requestFeatureIntro: (key: string, title: string, description: string, action: () => void) => void;
 }) => {
-  const [caption, setCaption] = useState("");
-  const [viewOnce, setViewOnce] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
-  const canUseViewOnce = tier === "premium+" || tier === "premium" || tier === "gold" || (/* verified businesses get view-once */ false);
-  const isVideo = media.type === "video";
+  const canUseViewOnce = tier === "premium+" || tier === "premium" || tier === "gold";
+
+  // Safeguard active index
+  const safeIndex = Math.min(activeIndex, mediaList.length - 1);
+  const currentItem = mediaList[safeIndex];
+
+  if (!currentItem) {
+    onClose();
+    return null;
+  }
+
+  const isVideo = currentItem.type === "video";
+  const caption = currentItem.caption || "";
+  const viewOnce = currentItem.viewOnce || false;
+
+  const setCaptionForCurrent = (val: string) => {
+    setMediaList((prev) =>
+      prev.map((item, idx) => (idx === safeIndex ? { ...item, caption: val } : item))
+    );
+  };
+
+  const setViewOnceForCurrent = (val: boolean) => {
+    setMediaList((prev) =>
+      prev.map((item, idx) => (idx === safeIndex ? { ...item, viewOnce: val } : item))
+    );
+  };
+
+  const removeItem = (idxToRemove: number) => {
+    setMediaList((prev) => {
+      const updated = prev.filter((_, idx) => idx !== idxToRemove);
+      if (updated.length === 0) {
+        onClose();
+      } else {
+        if (activeIndex >= updated.length) {
+          setActiveIndex(updated.length - 1);
+        }
+      }
+      return updated;
+    });
+  };
 
   return (
     <>
@@ -1760,13 +1798,58 @@ const MediaEditor = ({ media, tier, onSend, onClose, requestFeatureIntro }: {
         </div>
 
         {/* Preview */}
-        <div className="flex-1 flex items-center justify-center overflow-hidden">
-          {media.preview && isVideo ? (
-            <video src={media.preview} controls className="max-w-full max-h-full object-contain" />
-          ) : media.preview && (
-            <img src={media.preview} alt="preview" className="max-w-full max-h-full object-contain" />
+        <div className="flex-1 flex items-center justify-center overflow-hidden p-4 relative">
+          <div className="absolute top-4 left-4 bg-black/60 px-3 py-1 rounded-full text-[11px] font-semibold text-white/90 z-10">
+            {safeIndex + 1} of {mediaList.length}
+          </div>
+
+          {currentItem.preview && isVideo ? (
+            <video key={currentItem.preview} src={currentItem.preview} controls className="max-w-full max-h-full object-contain" />
+          ) : currentItem.preview && (
+            <img key={currentItem.preview} src={currentItem.preview} alt="preview" className="max-w-full max-h-full object-contain" />
           )}
         </div>
+
+        {/* Thumbnails Row */}
+        {mediaList.length > 1 && (
+          <div className="shrink-0 px-4 py-2 bg-black/40 overflow-x-auto border-t border-white/5 flex gap-2 justify-center">
+            {mediaList.map((item, idx) => {
+              const isActive = idx === safeIndex;
+              return (
+                <div
+                  key={idx}
+                  className={`relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border-2 cursor-pointer transition-all ${
+                    isActive ? "border-white scale-105" : "border-transparent opacity-60 hover:opacity-90"
+                  }`}
+                  onClick={() => setActiveIndex(idx)}
+                >
+                  {item.type === "video" ? (
+                    <div className="w-full h-full bg-zinc-800 flex items-center justify-center relative">
+                      <video src={item.preview} className="w-full h-full object-cover pointer-events-none" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                  ) : (
+                    <img src={item.preview} className="w-full h-full object-cover" alt="thumb" />
+                  )}
+                  {/* Remove button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeItem(idx);
+                    }}
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] font-bold hover:bg-red-500 shadow-md"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Caption & Options */}
         <div className="shrink-0 px-4 py-4 space-y-3 bg-black/92 border-t border-white/10">
@@ -1776,7 +1859,7 @@ const MediaEditor = ({ media, tier, onSend, onClose, requestFeatureIntro }: {
             </label>
             <textarea
               value={caption}
-              onChange={(e) => setCaption(e.target.value)}
+              onChange={(e) => setCaptionForCurrent(e.target.value)}
               placeholder={`Add a message to your ${isVideo ? "video" : "photo"}...`}
               rows={2}
               className="w-full bg-white/10 rounded-2xl px-4 py-3 outline-none text-[13px] placeholder:text-white/45 resize-none"
@@ -1792,7 +1875,7 @@ const MediaEditor = ({ media, tier, onSend, onClose, requestFeatureIntro }: {
                   "chat_view_once",
                   "View Once",
                   "Send messages that can only be viewed once. Perfect for private moments.",
-                  () => setViewOnce(!viewOnce)
+                  () => setViewOnceForCurrent(!viewOnce)
                 );
               } else {
                 setShowUpgradePrompt(true);
@@ -1825,12 +1908,12 @@ const MediaEditor = ({ media, tier, onSend, onClose, requestFeatureIntro }: {
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => {
-              onSend(caption, viewOnce && canUseViewOnce);
+              onSend(mediaList);
               onClose();
             }}
             className="w-full py-3.5 rounded-full bg-white text-black font-bold text-[13px] hover:shadow-lg transition-shadow flex items-center justify-center gap-2">
             <Send className="w-4 h-4" />
-            Send {caption ? "with Caption" : isVideo ? "Video" : "Photo"}
+            Send {mediaList.length} {mediaList.length === 1 ? (isVideo ? "Video" : "Photo") : "Items"}
           </motion.button>
         </div>
 
@@ -2196,7 +2279,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
   const [mutedIds, setMutedIds] = useState<string[]>([]);
   const [showReport, setShowReport] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
-  const [mediaToEdit, setMediaToEdit] = useState<{ type: string; preview?: string; file?: File } | null>(null);
+  const [mediaListToEdit, setMediaListToEdit] = useState<{ type: string; preview: string; file?: File; caption?: string; viewOnce?: boolean }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const threadLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2560,6 +2643,12 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     }
 
     if (activeThread?.botId && !activeThread.isReelsy && !activeThread.isSMS) {
+      if (!friendBotIds.includes(activeThread.botId)) {
+        setTimeout(() => {
+          setChatNotice(`${activeThread.name} has not approved your friend request yet.`);
+        }, 500);
+        return;
+      }
       setIsTyping(true);
       setTimeout(async () => {
         const bot = BOTS.find((b) => b.id === activeThread.botId);
@@ -3445,28 +3534,58 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
             </AnimatePresence>
 
             {/* Hidden file inputs */}
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+            <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden"
               onChange={(e) => {
-                if (e.target.files?.[0]) {
-                  const file = e.target.files[0];
-                  const reader = new FileReader();
-                  reader.onload = (ev) => {
-                    setMediaToEdit({ type: "photo", preview: ev.target?.result as string, file });
-                  };
-                  reader.readAsDataURL(file);
+                if (e.target.files && e.target.files.length > 0) {
+                  const files = Array.from(e.target.files).slice(0, 10);
+                  const items: { type: string; preview: string; file: File; caption: string; viewOnce: boolean }[] = [];
+                  let processed = 0;
+                  files.forEach((file, idx) => {
+                    const isVideo = file.type.startsWith("video/");
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      items[idx] = {
+                        type: isVideo ? "video" : "photo",
+                        preview: ev.target?.result as string,
+                        file,
+                        caption: "",
+                        viewOnce: false,
+                      };
+                      processed++;
+                      if (processed === files.length) {
+                        setMediaListToEdit(items.filter(Boolean));
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  });
                   e.target.value = "";
                 }
               }}
             />
-            <input ref={videoInputRef} type="file" accept="video/*" className="hidden"
+            <input ref={videoInputRef} type="file" accept="image/*,video/*" multiple className="hidden"
               onChange={(e) => {
-                if (e.target.files?.[0]) {
-                  const file = e.target.files[0];
-                  const reader = new FileReader();
-                  reader.onload = (ev) => {
-                    setMediaToEdit({ type: "video", preview: ev.target?.result as string, file });
-                  };
-                  reader.readAsDataURL(file);
+                if (e.target.files && e.target.files.length > 0) {
+                  const files = Array.from(e.target.files).slice(0, 10);
+                  const items: { type: string; preview: string; file: File; caption: string; viewOnce: boolean }[] = [];
+                  let processed = 0;
+                  files.forEach((file, idx) => {
+                    const isVideo = file.type.startsWith("video/");
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      items[idx] = {
+                        type: isVideo ? "video" : "photo",
+                        preview: ev.target?.result as string,
+                        file,
+                        caption: "",
+                        viewOnce: false,
+                      };
+                      processed++;
+                      if (processed === files.length) {
+                        setMediaListToEdit(items.filter(Boolean));
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  });
                   e.target.value = "";
                 }
               }}
@@ -3826,7 +3945,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                   onClose={() => setShowCameraCapture(false)}
                   onCapture={(preview, type) => {
                     setShowCameraCapture(false);
-                    setMediaToEdit({ type, preview });
+                    setMediaListToEdit([{ type, preview, caption: "", viewOnce: false }]);
                   }}
                 />
               )}
@@ -3834,37 +3953,40 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
 
             {/* Media editor */}
             <AnimatePresence>
-              {mediaToEdit && (
+              {mediaListToEdit.length > 0 && (
                 <MediaEditor
-                  media={mediaToEdit}
+                  mediaList={mediaListToEdit}
+                  setMediaList={setMediaListToEdit}
                   tier={tier}
-                  onSend={(caption, viewOnce) => {
-                    const msgId = Date.now();
-                    const msg: ChatMessage = {
-                      id: msgId,
-                      fromName: "You",
-                      content: caption,
-                      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                      isMine: true,
-                      mediaUrl: mediaToEdit.preview,
-                      mediaType: mediaToEdit.type === "photo" ? "image" : "video",
-                      viewOnce: viewOnce,
-                      isSending: true,
-                    };
-                    setMessages((p) => ({
-                      ...p,
-                      [activeId!]: [...(p[activeId!] || []), msg],
-                    }));
-                    setThreads((p) => p.map((t) => t.id === activeId ? { ...t, lastMessage: viewOnce ? "View once media" : caption || (mediaToEdit.type === "video" ? "Video" : "Photo"), time: "now" } : t));
-                    setTimeout(() => {
+                  onSend={(items) => {
+                    items.forEach((item, index) => {
+                      const msgId = Date.now() + index;
+                      const msg: ChatMessage = {
+                        id: msgId,
+                        fromName: "You",
+                        content: item.caption || "",
+                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        isMine: true,
+                        mediaUrl: item.preview,
+                        mediaType: item.type === "photo" ? "image" : "video",
+                        viewOnce: item.viewOnce || false,
+                        isSending: true,
+                      };
                       setMessages((p) => ({
                         ...p,
-                        [activeId!]: (p[activeId!] || []).map((m) => m.id === msgId ? { ...m, isSending: false } : m),
+                        [activeId!]: [...(p[activeId!] || []), msg],
                       }));
-                    }, 1400);
-                    setMediaToEdit(null);
+                      setThreads((p) => p.map((t) => t.id === activeId ? { ...t, lastMessage: item.viewOnce ? "View once media" : item.caption || (item.type === "video" ? "Video" : "Photo"), time: "now" } : t));
+                      setTimeout(() => {
+                        setMessages((p) => ({
+                          ...p,
+                          [activeId!]: (p[activeId!] || []).map((m) => m.id === msgId ? { ...m, isSending: false } : m),
+                        }));
+                      }, 1400);
+                    });
+                    setMediaListToEdit([]);
                   }}
-                  onClose={() => setMediaToEdit(null)}
+                  onClose={() => setMediaListToEdit([])}
                   requestFeatureIntro={requestFeatureIntro}
                 />
               )}

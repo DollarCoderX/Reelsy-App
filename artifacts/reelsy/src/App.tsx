@@ -16,8 +16,10 @@ import AuthOTP from "@/components/AuthOTP";
 import AuthPassword from "@/components/AuthPassword";
 import AuthProfile from "@/components/AuthProfile";
 import AuthInterests from "@/components/AuthInterests";
+import AuthDiscover from "@/components/AuthDiscover";
 import AuthFriendSuggestions from "@/components/AuthFriendSuggestions";
 import AuthPermissions from "@/components/AuthPermissions";
+import WorkspaceSetup from "@/components/WorkspaceSetup";
 import AccountSuspended from "@/components/AccountSuspended";
 import BannedUser from "@/components/BannedUser";
 import MainApp from "@/components/MainApp";
@@ -183,8 +185,10 @@ function AppContent() {
       {appPhase === "auth-password" && <AuthPassword key="auth-password" />}
       {appPhase === "auth-profile" && <AuthProfile key="auth-profile" />}
       {appPhase === "auth-interests" && <AuthInterests key="auth-interests" />}
+      {appPhase === "auth-discover" && <AuthDiscover key="auth-discover" />}
       {appPhase === "auth-friends" && <AuthFriendSuggestions key="auth-friends" />}
       {appPhase === "auth-permissions" && <AuthPermissions key="auth-permissions" />}
+      {appPhase === "workspace-setup" && <WorkspaceSetup key="workspace-setup" />}
       {appPhase === "account-suspended" && <AccountSuspended key="account-suspended" username={user?.username || ''} email={user?.email || ''} />}
       {appPhase === "banned" && <BannedUser key="banned" />}
     </AnimatePresence>

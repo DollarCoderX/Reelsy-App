@@ -407,6 +407,7 @@ router.post('/profile/update', async (req, res) => {
       return res.status(400).json({ error: 'Username is required' });
     }
 
+    const cleanUsername = username.replace(/^@/, '');
     const usersCollection = await getUsersCollection();
 
     const updateData: any = { updatedAt: new Date() };
@@ -416,7 +417,7 @@ router.post('/profile/update', async (req, res) => {
     if (interests && Array.isArray(interests)) updateData.interests = interests;
 
     const result = await usersCollection.updateOne(
-      { username },
+      { username: cleanUsername },
       { $set: updateData }
     );
 
@@ -462,9 +463,10 @@ router.post('/tier/update', async (req, res) => {
 router.get('/profile/:username', async (req, res) => {
   try {
     const { username } = req.params;
+    const cleanUsername = username.replace(/^@/, '');
 
     const usersCollection = await getUsersCollection();
-    const mongoUser = await usersCollection.findOne({ username });
+    const mongoUser = await usersCollection.findOne({ username: cleanUsername });
 
     if (!mongoUser) {
       return res.status(404).json({ error: 'User not found' });
