@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { fetch as undiciFetch } from "undici";
 
 const router: IRouter = Router();
 
@@ -14,7 +15,7 @@ router.post("/groq", async (req, res) => {
       return res.status(400).json({ error: "prompt is required" });
     }
 
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const groqRes = await undiciFetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -31,12 +32,17 @@ router.post("/groq", async (req, res) => {
       }),
     });
 
-    const data = await groqRes.json();
+    const data: unknown = await groqRes.json();
     if (!groqRes.ok) {
-      return res.status(groqRes.status).json({ error: "Groq request failed", details: data });
+      return res.status(groqRes.status).json({
+        error: "Groq request failed",
+        details: data,
+      });
     }
 
-    const text = data?.choices?.[0]?.message?.content?.trim() || "";
+    const text =
+      (data as { choices?: Array<{ message?: { content?: string } }> } | null)?.choices?.[0]
+        ?.message?.content?.trim() || "";
     return res.json({ text });
   } catch (error) {
     req.log?.error?.(error, "Groq route failed");
