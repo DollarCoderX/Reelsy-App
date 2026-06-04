@@ -7,6 +7,7 @@ import { AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSupabaseStatusPolling } from "@/hooks/useSupabaseStatusPolling";
 import { useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 import SplashScreen from "@/components/SplashScreen";
 import WelcomeScreen from "@/components/WelcomeScreen";
@@ -252,6 +253,7 @@ function App() {
           </FeatureIntroProvider>
         </AppProvider>
         <Toaster />
+        <Analytics />
       </TooltipProvider>
     </QueryClientProvider>
   );
