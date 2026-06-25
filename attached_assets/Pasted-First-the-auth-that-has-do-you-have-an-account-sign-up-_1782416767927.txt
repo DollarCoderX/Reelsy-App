@@ -1,0 +1,25 @@
+First the auth that has do you have an account sign up we will add a function when tap goes to a login ui with two buttons one lgoin with google with google logo, login with email(when tap leads to another ui where they have to put in there email and password then a qr code will be sent just like email signup if email exist moves to main home feed ui but shows that animation after the enabe notifications stuff also dont forget to add a forgot password that sends a email of there password tat is saved in monogodb to there email) and login with phone(this is works only if user added number in there email setting attached to there email then we will use a free service like brevo to send otp to that number(tell me which service so i will get the api and add to secret myself)) and down add dont have acount sign up.
+Next in the setting user account add a button section to add number and other extra info to connect to there email and sync to monogodb
+Also for comment we will use monogodb or supabse to send comment and preview to others no more fake comment and messaging we will use supabase livetime chatting 
+Next we are removing all bots every single one no more bots, no fake data now we will add another seperate monogodb api key for string(that connect user data to appear in reelsy app like search etc)
+In chat user has default ai but the ai has restriction using ip address only usa, uk , canada and nigeria can see the reelsy ai in there app
+Back to auth for the email  countries like usa, uk, ghana, china, france, canada. they dont get an otp but they reciev a link when they tap the link it automatically register a code to the email to assign asset note those country ui wont show put otp but  changes to a blank white or black depending on theme with a loading animation waiting for verfiaction also add a back button for back and the other side a three dot(help) when tap open a ui that gives a dic on the help
+once the link sent to that email is tap it redirect to that ui and verify then they have to continue like the normal after otp then will have to put password etc 
+make sure any update ur making blends with my ui
+now remove regional app use ip address all countries can use reely but some has limitations like what i said up, but a strict no vpn system
+for the comment and message all emoji in reelsy we will change them from the static emoji to use lottiefiles open emojis with animation all ios make sure it isnt lazy and always run animations clean when in chat or comment section add over 50 + lottiefile animation emoji and zero static 
+Now the add part always sync supabase to reelsy ui so user are always being shown in the ui and the begining that said follow (number) ppl so it shows availabe ppl
+*Issue*
+the app currently ban ppl for no reasons when they try email sign up otp
+the frontend doesnt sync well with the backend and when someone logs out and refresh there browser it takes them back to the old signup account they where in
+
+*info*
+ for any api key they are all in env 
+ all data that need to be in monogodb make sure the fronend sends it make the frontend and backend one (work together always)
+
+*note* 
+anything u dont know ask me to clarify
+make everything sync with the website url since it a replit browser i will use to preview make it link to that browser to sync and for vercel its reesly-com.vercel.app for continue with google or login i will add replit url to my google console
+*extra*
+when user post images or video or text make that post circle button in home feed have dotted black or white depend on theme colors moving it show sending and when finish sending they will get a user friendly notification to implement real posting also make a clean viewing ui for video and update the image one to work well plus the three button to dowload(dowload with reelsy logo watermark and that @username)
+
