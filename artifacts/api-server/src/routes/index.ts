@@ -5,6 +5,8 @@ import verificationRouter from "./verification";
 import mediaRouter from "./media";
 import engagementRouter from "./engagement";
 import groqRouter from "./groq";
+import postsRouter from "./posts";
+import usersRouter from "./users";
 
 const router: IRouter = Router();
 
@@ -14,6 +16,8 @@ router.use("/engagement", engagementRouter);
 router.use(verificationRouter);
 router.use(mediaRouter);
 router.use(groqRouter);
+router.use(postsRouter);
+router.use(usersRouter);
 
 router.get("/music/search", async (req, res) => {
   const { q } = req.query;
@@ -21,7 +25,6 @@ router.get("/music/search", async (req, res) => {
     res.status(400).json({ error: "Query parameter 'q' is required" });
     return;
   }
-
   try {
     const jamendoRes = await fetch(
       `https://api.jamendo.com/v3.0/tracks/?client_id=b6747d04&format=json&search=${encodeURIComponent(
@@ -31,7 +34,6 @@ router.get("/music/search", async (req, res) => {
     const data = await jamendoRes.json();
     res.json(data);
   } catch (error) {
-    console.error("Jamendo proxy error:", error);
     res.status(500).json({ error: "Failed to fetch from Jamendo" });
   }
 });

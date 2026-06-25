@@ -4,9 +4,9 @@ import { useToast } from "@/hooks/use-toast";
 import { AppLanguage, useAppContext } from "@/context/AppContext";
 import {
   User, Mail, Shield, Bell, Globe, Moon, HelpCircle, FileText, LogOut, ChevronRight,
-  Sun, Camera, Lock, Star, Check, X, Crown, VerifiedIcon,Flame, Hash, ChevronLeft,
+  Sun, Camera, Lock, Star, Check, X, Crown, VerifiedIcon, Flame, Hash, ChevronLeft,
   Eye, EyeOff, Users, Clock, Infinity as InfinityIcon, MessageSquare, Loader2, Palette,
-  Send,
+  Send, Phone,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AvatarCustomizer from "../AvatarCustomizer";
@@ -54,6 +54,86 @@ const Section = ({ title, children, delay = 0 }: { title: string; children: Reac
     </div>
   </motion.div>
 );
+
+const PhoneNumberRow = () => {
+  const { user, setUser } = useAppContext();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(user?.phone || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    if (!value.trim()) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("reelsy_auth_token");
+      if (token && user?.username) {
+        await fetch(`/api/users/${user.username}/phone`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ phone: value.trim() }),
+        });
+      }
+      if (user) setUser({ ...user, phone: value.trim() });
+      setSaved(true);
+      setTimeout(() => { setSaved(false); setEditing(false); }, 1500);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="px-4 py-3 flex items-center gap-3">
+        <Phone className="w-4 h-4 text-muted-foreground shrink-0" strokeWidth={1.8} />
+        <input
+          autoFocus
+          type="tel"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="+1 234 567 8900"
+          style={{ fontSize: 14 }}
+          className="flex-1 bg-secondary rounded-xl px-3 py-2 font-medium outline-none"
+        />
+        <AnimatePresence mode="wait">
+          {saved ? (
+            <motion.div key="done" initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+              className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
+              <Check className="w-4 h-4 text-white" />
+            </motion.div>
+          ) : (
+            <motion.button key="save" whileTap={{ scale: 0.9 }} onClick={handleSave} disabled={saving}
+              className="w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center disabled:opacity-40">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            </motion.button>
+          )}
+        </AnimatePresence>
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => setEditing(false)}
+          className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+          <X className="w-3.5 h-3.5" />
+        </motion.button>
+      </div>
+    );
+  }
+
+  return (
+    <motion.button onClick={() => setEditing(true)} whileTap={{ opacity: 0.7 }}
+      className="w-full flex items-center justify-between px-4 py-3.5 text-left">
+      <div className="flex items-center gap-2.5">
+        <Phone className="w-4 h-4 text-muted-foreground" strokeWidth={1.8} />
+        <span className="font-medium text-[13px]">Phone Number</span>
+      </div>
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        {user?.phone ? (
+          <span className="text-[12px]">{user.phone}</span>
+        ) : (
+          <span className="text-[12px] text-muted-foreground">Add number</span>
+        )}
+        <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+      </div>
+    </motion.button>
+  );
+};
 
 // ---- Subscription Modal ----
 const PLAN_FEATURES: Record<string, string[]> = {
@@ -1350,7 +1430,8 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
           {/* Account */}
           <Section title={t("Account")} delay={0.1}>
             <SettingRow icon={User} label={t("Edit Profile")} onPress={() => setSheet("editProfile")} />
-            <SettingRow icon={Mail} label={t("Email")} />
+            <SettingRow icon={Mail} label={t("Email")} value={user?.email ? user.email.replace(/(.{2}).*(@.*)/, "$1…$2") : undefined} />
+            <PhoneNumberRow />
             <SettingRow icon={VerifiedIcon} label={t("Get Verified Badge")} onPress={() => setSheet("verification")} />
             <SettingRow icon={Shield} label={t("Privacy")} onPress={() => setSheet("privacy")} />
           </Section>

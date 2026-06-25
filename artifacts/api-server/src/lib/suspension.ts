@@ -1,40 +1,32 @@
 import { Collection } from 'mongodb';
 import { ReelsyUser } from './mongodb';
 
-const SUSPICIOUS_EMAIL_PATTERNS = [
-  'yahoo', 'ymail', 'rocketmail', 'webmail', // Yahoo domains
-];
-
-const NEW_EMAIL_DOMAINS = [
+// Only flag actual temporary/disposable email services - NOT Yahoo or other mainstream providers
+const DISPOSABLE_EMAIL_DOMAINS = [
   'tempmail', 'guerrillamail', '10minutemail', 'mailinator', '1secmail', 'fakeinbox',
   'throwaway', 'temp-mail', 'maildrop', 'spamgourmet', 'mailnesia', 'sharklasers',
+  'trashmail', 'yopmail', 'getairmail', 'throwawaymail', 'dispostable', 'spamgourmet',
+  'mintemail', 'tempr', 'discard',
 ];
 
 /**
- * Check if email is suspicious (yahoo, temporary, or newly created)
+ * Check if email uses a known disposable/temporary provider
+ * Yahoo, Gmail, Outlook etc are all legitimate and should NOT trigger strikes
  */
 export function isSuspiciousEmail(email: string): { suspicious: boolean; reason?: string } {
   const domain = email.split('@')[1]?.toLowerCase() || '';
-  
-  // Check for known temporary email providers
-  for (const tempDomain of NEW_EMAIL_DOMAINS) {
+
+  for (const tempDomain of DISPOSABLE_EMAIL_DOMAINS) {
     if (domain.includes(tempDomain)) {
       return { suspicious: true, reason: 'temporary_email_provider' };
     }
   }
-  
-  // Check for yahoo (allowed but monitored)
-  for (const suspiciousDomain of SUSPICIOUS_EMAIL_PATTERNS) {
-    if (domain.includes(suspiciousDomain)) {
-      return { suspicious: true, reason: 'yahoo_or_suspicious_domain' };
-    }
-  }
-  
+
   return { suspicious: false };
 }
 
 /**
- * Add a strike to user account and check if suspension needed (3 strikes = ban)
+ * Add a strike to user account and check if suspension needed (3 strikes = suspend)
  */
 export async function addStrike(
   usersCollection: Collection<ReelsyUser>,
@@ -43,22 +35,16 @@ export async function addStrike(
   details: string
 ): Promise<{ newStrikeCount: number; suspended: boolean }> {
   const user = await usersCollection.findOne({ username });
-  if (!user) {
-    return { newStrikeCount: 0, suspended: false };
-  }
+  if (!user) return { newStrikeCount: 0, suspended: false };
 
   const currentStrikeCount = user.strikeCount || 0;
   const newStrikeCount = currentStrikeCount + 1;
 
   const strikeLog = user.strikes || [];
-  strikeLog.push({
-    type: strikeType,
-    timestamp: new Date(),
-    details,
-  });
+  strikeLog.push({ type: strikeType, timestamp: new Date(), details });
 
-  let suspensionReason = '';
   let shouldSuspend = false;
+  let suspensionReason = '';
 
   if (newStrikeCount >= 3) {
     shouldSuspend = true;
@@ -82,7 +68,6 @@ export async function addStrike(
   }
 
   await usersCollection.updateOne({ username }, { $set: updateData });
-
   return { newStrikeCount, suspended: shouldSuspend };
 }
 
@@ -102,24 +87,18 @@ export async function sendSuspensionReviewEmail(
     }
 
     const reviewEmail = 'uraincle@gmail.com';
-
     const emailBody = `
 <h2>Account Suspension Review Request</h2>
 <p><strong>User:</strong> ${username} (${toEmail})</p>
 <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
-
 <h3>System Telemetry Data:</h3>
 <pre>${JSON.stringify(telemetryData, null, 2)}</pre>
-
-<p>This user has requested a review of their account suspension. Please investigate the circumstances and decide on appropriate action.</p>
+<p>This user has requested a review of their account suspension.</p>
     `;
 
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
-      headers: {
-        'api-key': brevoApiKey,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'api-key': brevoApiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender: { email: 'noreply@reelsy.com', name: 'Reelsy Security' },
         to: [{ email: reviewEmail, name: 'Uraincle' }],
@@ -128,13 +107,7 @@ export async function sendSuspensionReviewEmail(
       }),
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Brevo email error:', error);
-      return false;
-    }
-
-    return true;
+    return response.ok;
   } catch (error) {
     console.error('Error sending suspension review email:', error);
     return false;

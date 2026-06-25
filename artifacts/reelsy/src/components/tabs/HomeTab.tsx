@@ -8,17 +8,6 @@ import {
   BarChart3, ExternalLink, Globe2, MapPin
 } from "lucide-react";
 import reelsyLogo from "@assets/db1645cc1ed95625a5dff41ee9a0f164_1778235733181.jpg";
-import {
-  AUTONOMOUS_BOT_IDS,
-  AUTONOMOUS_BOT_LAST_POST_AT_KEY,
-  AUTONOMOUS_BOT_POST_INTERVAL_MS,
-  AUTONOMOUS_BOT_POSTS_STORAGE_KEY,
-  BOTS,
-  BOT_POSTS,
-  createAutonomousBotPosts,
-  getBotAvatarUrl,
-} from "@/data/bots";
-import type { Bot, BotPost } from "@/data/bots";
 import UserProfile from "@/components/UserProfile";
 import PostComposer from "@/components/PostComposer";
 import { useAppContext } from "@/context/AppContext";
@@ -28,47 +17,11 @@ import { useEngagement } from "@/hooks/useEngagement";
 
 interface HomeTabProps { onNavVisible?: (v: boolean) => void; }
 
-const STORIES = BOTS.slice(0, 6).map((b) => ({ id: b.id, name: b.name.split(" ")[0], avatarUrl: getBotAvatarUrl(b), unread: b.online }));
+const STORIES: { id: string; name: string; avatarUrl: string; unread: boolean }[] = [];
 const TAGS = ["#design", "#afrobeats", "#fyp", "#Lagos", "#AI", "#minimalism", "#creativity", "#startup", "#music", "#fashion", "#film", "#wellness", "#tech", "#culture", "#broadcast", "#reelsy", "#photography", "#travel", "#nature", "#fitness", "#food", "#art", "#lifestyle", "#coding", "#vlog", "#entertainment", "#business", "#growth", "#vibes", "#news"];
 
 const formatCount = (n: number) => n >= 1000000 ? `${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
 
-const MOCK_BOT_COMMENTS = (botNames: string[]) =>
-  botNames.map((name, i) => ({ id: i, name, handle: `@${name.toLowerCase().replace(" ", "")}`, text: ["Love this take.", "So true, couldn't agree more!", "This is everything right now", "Brilliant as always"][i % 4], time: `${i + 1}h`, avatarSeed: name }));
-
-const readAutonomousBotPosts = (): BotPost[] => {
-  try {
-    const saved = localStorage.getItem(AUTONOMOUS_BOT_POSTS_STORAGE_KEY);
-    const parsed = saved ? JSON.parse(saved) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const botPostToPostData = (bp: BotPost): PostData => ({
-  id: bp.id,
-  botId: bp.botId,
-  type: (bp.image || bp.images?.length ? "image" : "text") as "text" | "image" | "video",
-  content: bp.content,
-  media: bp.images || bp.image,
-  likes: bp.likes,
-  replies: bp.replies,
-  reposts: bp.reposts,
-  views: bp.views,
-  time: bp.time,
-});
-
-const BOT_ENGAGEMENT_LAST_AT_KEY = "reelsy_bot_engagement_last_at";
-const BOT_ENGAGEMENT_INTERVAL_MS = 45 * 1000;
-
-const BOT_ENGAGEMENT_COMMENTS = [
-  "This is good. I had to stop and read it twice.",
-  "I like this one a lot. Keep posting.",
-  "This has real energy. Sharing it.",
-  "Clean post. The timeline needed this.",
-  "You are onto something here.",
-];
 
 interface PostData {
   id: string;
@@ -155,20 +108,7 @@ const CommentSheet = ({ post, onClose }: { post: PostData; onClose: () => void }
   const { user } = useAppContext();
   const [commentText, setCommentText] = useState("");
   
-  const [comments, setComments] = useState<CommentData[]>(() => {
-    const names = BOTS.slice(0, 4).map((b) => b.name);
-    return names.map((name, i) => ({
-      id: `comment-${i}-${Date.now()}`,
-      name,
-      handle: `@${name.toLowerCase().replace(" ", "")}`,
-      text: ["Love this take.", "So true, couldn't agree more!", "This is everything right now", "Brilliant as always"][i % 4],
-      time: `${i + 1}h`,
-      avatarSeed: name,
-      likes: Math.floor(Math.random() * 15) + 2,
-      liked: false,
-      replies: []
-    }));
-  });
+  const [comments, setComments] = useState<CommentData[]>([]);
 
   const [replyingTo, setReplyingTo] = useState<CommentData | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -613,10 +553,10 @@ const ReelsyAdBrowser = ({
 const REPORT_REASONS_POST = ["Spam", "Misinformation", "Hateful content", "Nudity or sexual content", "Violence", "Scam or fraud", "Other"];
 
 const PostCard = ({
-  post, bot, currentUserAvatar, currentUserNickname, onAvatarTap, onComment, onRepost, onTagClick, onSeenTap, onAdOpen
+  post, authorName, authorAvatar, currentUserAvatar, currentUserNickname, onComment, onRepost, onTagClick, onSeenTap, onAdOpen
 }: {
-  post: PostData; bot?: Bot; currentUserAvatar?: string; currentUserNickname?: string;
-  onAvatarTap: (bot: Bot) => void;
+  post: PostData; authorName?: string; authorAvatar?: string; currentUserAvatar?: string; currentUserNickname?: string;
+  onAvatarTap?: (id: string) => void;
   onComment: (post: PostData) => void; onRepost: (post: PostData) => void;
   onTagClick?: (tag: string) => void;
   onSeenTap?: (post: PostData) => void;
@@ -764,9 +704,9 @@ const PostCard = ({
     ? (currentUserAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=user&backgroundColor=b6e3f4`)
     : isSponsoredPost
       ? (post.adAvatar || reelsyLogo)
-    : (bot ? getBotAvatarUrl(bot) : `https://api.dicebear.com/7.x/avataaars/svg?seed=user`);
-  const displayName = isUserPost ? (currentUserNickname || "You") : isSponsoredPost ? (post.adBrandName || "Sponsor") : (bot ? bot.name : "You");
-  const displayHandle = isUserPost ? (user?.username ? `${user.username}` : "@you") : isSponsoredPost ? (post.adHandle || "@sponsor") : (bot ? bot.handle : "@you");
+    : (authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.id}&backgroundColor=b6e3f4`);
+  const displayName = isUserPost ? (currentUserNickname || "You") : isSponsoredPost ? (post.adBrandName || "Sponsor") : (authorName || "User");
+  const displayHandle = isUserPost ? (user?.username ? `${user.username}` : "@you") : isSponsoredPost ? (post.adHandle || "@sponsor") : (post.id ? `@user` : "@user");
   const adMediaSrc = getAdMediaSrc(post);
 
   if (hidden) return null;
@@ -990,7 +930,6 @@ const PostCard = ({
               onAdOpen?.(post);
               return;
             }
-            bot && onAvatarTap(bot);
           }}
         >
           <div className="w-9 h-9 rounded-full bg-secondary overflow-hidden">
@@ -1014,7 +953,6 @@ const PostCard = ({
                     onAdOpen?.(post);
                     return;
                   }
-                  bot && onAvatarTap(bot);
                 }}
                 className="font-semibold text-[13px] truncate"
               >
@@ -1182,15 +1120,10 @@ const PostCard = ({
             </div>
           )}
 
-          {!post.isAd && (
+          {!post.isAd && post.likes > 0 && (
           <div className="flex items-center gap-2 mb-2">
-            <div className="flex -space-x-1.5">
-              {BOTS.slice(0, 3).map((b) => (
-                <img key={b.id} src={getBotAvatarUrl(b)} className="w-4 h-4 rounded-full bg-secondary ring-[1.5px] ring-background object-cover" alt="" />
-              ))}
-            </div>
             <span className="text-[11px] text-muted-foreground">
-              Liked by <span className="font-semibold text-foreground">{BOTS[0].name.split(" ")[0]}</span> and {formatCount(post.likes + (isLiked ? 1 : 0) + 2)} others
+              {formatCount(post.likes + (isLiked ? 1 : 0))} likes
             </span>
           </div>
           )}
@@ -1320,14 +1253,15 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     [supportNotifs]
   );
 
-  const [profileBot, setProfileBot] = useState<Bot | null>(null);
+  const [profileBot, setProfileBot] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [commentPost, setCommentPost] = useState<PostData | null>(null);
   const [userPosts, setUserPosts] = useState<PostData[]>(() => {
-    const saved = localStorage.getItem("reelsy_user_posts");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem("reelsy_user_posts");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
-  const [autonomousBotPosts, setAutonomousBotPosts] = useState<BotPost[]>(readAutonomousBotPosts);
   const [reshareTarget, setReshareTarget] = useState<PostData | null>(null);
 
   const [seenSheetPost, setSeenSheetPost] = useState<PostData | null>(null);
@@ -1375,111 +1309,6 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     };
   }, []);
 
-  useEffect(() => {
-    const isWebActive = () =>
-      document.visibilityState === "visible" && (typeof navigator === "undefined" || navigator.onLine);
-
-    const postIfReady = () => {
-      if (!isWebActive()) return;
-
-      const lastPostAt = Number(localStorage.getItem(AUTONOMOUS_BOT_LAST_POST_AT_KEY) || "0");
-      const now = Date.now();
-      if (now - lastPostAt < AUTONOMOUS_BOT_POST_INTERVAL_MS) return;
-
-      const freshPosts = createAutonomousBotPosts(now);
-      setAutonomousBotPosts((prev) => {
-        const merged = [...freshPosts, ...prev].slice(0, 48);
-        localStorage.setItem(AUTONOMOUS_BOT_POSTS_STORAGE_KEY, JSON.stringify(merged));
-        localStorage.setItem(AUTONOMOUS_BOT_LAST_POST_AT_KEY, String(now));
-        return merged;
-      });
-    };
-
-    const syncStoredPosts = (e: StorageEvent) => {
-      if (e.key === AUTONOMOUS_BOT_POSTS_STORAGE_KEY) {
-        setAutonomousBotPosts(readAutonomousBotPosts());
-      }
-    };
-
-    postIfReady();
-    const interval = window.setInterval(postIfReady, AUTONOMOUS_BOT_POST_INTERVAL_MS);
-    window.addEventListener("online", postIfReady);
-    document.addEventListener("visibilitychange", postIfReady);
-    window.addEventListener("storage", syncStoredPosts);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("online", postIfReady);
-      document.removeEventListener("visibilitychange", postIfReady);
-      window.removeEventListener("storage", syncStoredPosts);
-    };
-  }, []);
-
-  useEffect(() => {
-    const isWebActive = () =>
-      document.visibilityState === "visible" && (typeof navigator === "undefined" || navigator.onLine);
-
-    const engageIfReady = () => {
-      if (!isWebActive()) return;
-      const lastEngagementAt = Number(localStorage.getItem(BOT_ENGAGEMENT_LAST_AT_KEY) || "0");
-      const now = Date.now();
-      if (now - lastEngagementAt < BOT_ENGAGEMENT_INTERVAL_MS) return;
-
-      setUserPosts((prev) => {
-        if (prev.length === 0) return prev;
-
-        const postIndex = Math.floor(Math.random() * Math.min(prev.length, 5));
-        const botId = AUTONOMOUS_BOT_IDS[Math.floor(Math.random() * AUTONOMOUS_BOT_IDS.length)];
-        const bot = BOTS.find((b) => b.id === botId);
-        const action = Math.random();
-        const updated = prev.map((post, index) => {
-          if (index !== postIndex) return post;
-          return {
-            ...post,
-            likes: post.likes + 1,
-            replies: post.replies + (action > 0.62 ? 1 : 0),
-            reposts: post.reposts + (action > 0.78 ? 1 : 0),
-            views: post.views + 8 + Math.floor(Math.random() * 28),
-          };
-        });
-
-        if (bot && action > 0.78) {
-          const target = prev[postIndex];
-          const resharePost: BotPost = {
-            id: `engage-${bot.id}-${now}`,
-            botId: bot.id,
-            content: BOT_ENGAGEMENT_COMMENTS[Math.floor(Math.random() * BOT_ENGAGEMENT_COMMENTS.length)],
-            image: Array.isArray(target.media) ? target.media[0] : target.media,
-            likes: 12 + Math.floor(Math.random() * 90),
-            replies: 2 + Math.floor(Math.random() * 16),
-            reposts: 1 + Math.floor(Math.random() * 18),
-            views: 700 + Math.floor(Math.random() * 5200),
-            time: "just now",
-          };
-          setAutonomousBotPosts((posts) => {
-            const merged = [resharePost, ...posts].slice(0, 48);
-            localStorage.setItem(AUTONOMOUS_BOT_POSTS_STORAGE_KEY, JSON.stringify(merged));
-            return merged;
-          });
-        }
-
-        localStorage.setItem(BOT_ENGAGEMENT_LAST_AT_KEY, String(now));
-        localStorage.setItem("reelsy_user_posts", JSON.stringify(updated));
-        return updated;
-      });
-    };
-
-    engageIfReady();
-    const interval = window.setInterval(engageIfReady, BOT_ENGAGEMENT_INTERVAL_MS);
-    window.addEventListener("online", engageIfReady);
-    document.addEventListener("visibilitychange", engageIfReady);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("online", engageIfReady);
-      document.removeEventListener("visibilitychange", engageIfReady);
-    };
-  }, []);
 
   const openComposer = (reshare?: PostData) => {
     setReshareTarget(reshare || null);
@@ -1556,19 +1385,14 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     onNavVisible?.(true);
   };
 
-  const openProfile = (bot: Bot) => {
-    setProfileBot(bot);
+  const openProfile = (_id: string) => {
+    setProfileBot(_id);
     onNavVisible?.(false);
   };
 
   const closeProfile = () => {
     setProfileBot(null);
     onNavVisible?.(true);
-  };
-
-  const openProfileChat = (bot: Bot) => {
-    localStorage.setItem("reelsy_active_thread_id", bot.id);
-    closeProfile();
   };
 
   const closeNotifs = () => {
@@ -1603,8 +1427,8 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
       location: postData.location,
       aiGenerated: postData.aiGenerated,
       reshare: reshareTarget ? {
-        authorName: reshareTarget.botId ? (BOTS.find((b) => b.id === reshareTarget.botId)?.name || "User") : "User",
-        authorHandle: reshareTarget.botId ? (BOTS.find((b) => b.id === reshareTarget.botId)?.handle || "@user") : "@user",
+        authorName: "User",
+        authorHandle: "@user",
         content: reshareTarget.content,
         media: reshareTarget.media,
       } : undefined,
@@ -1735,16 +1559,12 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
   };
 
   const allPosts: PostData[] = [
-    ...autonomousBotPosts.map(botPostToPostData),
-    ...userPosts.slice(0, 3),  // First 3 user posts
-    AD_POST_1,  // First ad
-    ...userPosts.slice(3),  // Rest of user posts
-    ...BOT_POSTS.map(botPostToPostData).slice(0, 18),  // First 18 bot posts
-    AD_POST_2,  // Second ad
-    ...BOT_POSTS.map(botPostToPostData).slice(18, 35),  // Bot posts 18-35
-    AD_POST_3,  // Third ad
-    ...BOT_POSTS.map(botPostToPostData).slice(35),  // Rest of bot posts
-     AD_POST_4
+    ...userPosts.slice(0, 3),
+    AD_POST_1,
+    ...userPosts.slice(3),
+    AD_POST_2,
+    AD_POST_3,
+    AD_POST_4,
   ];
 
 
@@ -1858,7 +1678,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
           </div>
           {STORIES.map((s) => (
             <motion.button key={s.id} whileTap={{ scale: 0.92 }}
-              onClick={() => { const b = BOTS.find((bot) => bot.id === s.id); b && openProfile(b); }}
+              onClick={() => openProfile(s.id)}
               className="flex flex-col items-center gap-1 shrink-0">
               <div className={`w-[50px] h-[50px] rounded-full p-[2px] ${s.unread ? "bg-foreground" : "bg-secondary"}`}>
                 <div className="w-full h-full rounded-full overflow-hidden bg-secondary ring-[2px] ring-background">
@@ -1907,26 +1727,22 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
           allPosts
             .filter((p) => !activeTag || p.content.includes(activeTag))
             .slice(0, visibleCount)
-            .map((post, i) => {
-              const bot = post.botId ? BOTS.find((b) => b.id === post.botId) : undefined;
-              return (
-                <motion.div key={post.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, delay: Math.min(i * 0.04, 0.3) }}>
-                  <PostCard
-                    post={post} bot={bot}
-                    currentUserAvatar={post.isUserPost ? user?.avatar || userAvatarUrl : undefined}
-                    currentUserNickname={post.isUserPost ? (user?.nickname || "You") : undefined}
-                    onAvatarTap={openProfile}
-                    onComment={openComments}
-                    onRepost={openComposer}
-                    onTagClick={setActiveTag}
-                    onSeenTap={openSeenSheet}
-                    onAdOpen={openAdBrowser}
-                  />
-                  <div className="h-px bg-secondary/40 mx-4" />
-                </motion.div>
-              );
-            })
+            .map((post, i) => (
+              <motion.div key={post.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, delay: Math.min(i * 0.04, 0.3) }}>
+                <PostCard
+                  post={post}
+                  currentUserAvatar={post.isUserPost ? user?.avatar || userAvatarUrl : undefined}
+                  currentUserNickname={post.isUserPost ? (user?.nickname || "You") : undefined}
+                  onComment={openComments}
+                  onRepost={openComposer}
+                  onTagClick={setActiveTag}
+                  onSeenTap={openSeenSheet}
+                  onAdOpen={openAdBrowser}
+                />
+                <div className="h-px bg-secondary/40 mx-4" />
+              </motion.div>
+            ))
         )}
       </div>
 
@@ -1948,19 +1764,12 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
             onClose={closeComposer}
             onPost={handleNewPost}
             resharePost={reshareTarget ? {
-              authorName: reshareTarget.botId ? (BOTS.find((b) => b.id === reshareTarget.botId)?.name || "User") : "User",
-              authorHandle: reshareTarget.botId ? (BOTS.find((b) => b.id === reshareTarget.botId)?.handle || "@user") : "@user",
+              authorName: "User",
+              authorHandle: "@user",
               content: reshareTarget.content,
               media: reshareTarget.media,
             } : undefined}
           />
-        )}
-      </AnimatePresence>
-
-      {/* User Profile */}
-      <AnimatePresence>
-        {profileBot && (
-          <UserProfile bot={profileBot} onClose={closeProfile} onChat={openProfileChat} />
         )}
       </AnimatePresence>
 

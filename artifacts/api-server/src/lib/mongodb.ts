@@ -11,6 +11,8 @@ export interface ReelsyUser {
   displayName: string;
   profileImage?: string; // URL to image or avatar selected
   age?: number;
+  bio?: string;
+  phone?: string;
   interests?: string[]; // Personalization data
   supabaseId?: string; // Supabase auth user ID (for Google OAuth)
   authProvider?: 'email' | 'google'; // Authentication method

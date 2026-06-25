@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Image as ImageIcon, Video, AtSign, Hash, Globe,Repeat2, ChevronDown, Loader2, Share2, Pin, Plus, Music, Search, Play, Pause, MapPin, Sparkles, Check, Crown, Undo2, Redo2, MessageSquare, ArrowRight } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
 import { useFeatureIntro } from "@/context/FeatureIntroContext";
-import { BOTS } from "@/data/bots";
 import { generateText } from "@/lib/ai";
 
 type ComposerPost = {
@@ -134,10 +133,20 @@ const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
   const hasHashOrAt = /([@#]\w+)/.test(content);
   const canUsePostAI = tier === "premium" || tier === "premium+" || tier === "gold";
 
-  const ALL_MENTIONS = BOTS.slice(0, 12).map((b) => ({
-    name: b.name,
-    handle: b.handle,
-  }));
+  const ALL_MENTIONS = [
+    { name: "Amara Osei", handle: "@amaraosei" },
+    { name: "Jay Rowe", handle: "@jayrowe" },
+    { name: "Nova Reeves", handle: "@novareeves" },
+    { name: "Priya Nair", handle: "@priyanair" },
+    { name: "Kofi Asante", handle: "@kofiasante" },
+    { name: "Sofia Mendes", handle: "@sofiamendes" },
+    { name: "Zara Ahmed", handle: "@zaraahmed" },
+    { name: "Luca Ferri", handle: "@lucaferri" },
+    { name: "Yemi Adebayo", handle: "@yemiadebayo" },
+    { name: "Mia Chen", handle: "@miachen" },
+    { name: "Elijah Brooks", handle: "@elijahbrooks" },
+    { name: "Nadia Volkov", handle: "@nadiavolkov" },
+  ];
 
   const detectSuggestions = (text: string) => {
     const textarea = textareaRef.current;

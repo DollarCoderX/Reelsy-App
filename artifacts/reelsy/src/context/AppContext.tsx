@@ -5,6 +5,7 @@ export type AppPhase =
   | "splash" | "welcome" | "auth-tos" | "auth-email"
   | "auth-otp" | "auth-password" | "auth-profile" | "auth-interests"
   | "auth-discover" | "auth-friends" | "auth-permissions" | "workspace-setup"
+  | "auth-login" | "auth-magic-link" | "auth-forgot-password"
   | "account-suspended" | "banned" | "main";
 
 export type Theme = "light" | "dark";
@@ -19,7 +20,8 @@ export interface UserProfile {
   avatar?: string;
   interests?: string[];
   bio?: string;
-  email?:string;
+  email?: string;
+  phone?: string;
   friendPolicy?: "open" | "request-only";
   coverImage?: string;
   verified?: boolean; // Verified badge for businesses (not a tier, just a flag)

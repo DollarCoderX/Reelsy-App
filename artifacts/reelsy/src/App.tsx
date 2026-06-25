@@ -23,7 +23,10 @@ import WorkspaceSetup from "@/components/WorkspaceSetup";
 import AccountSuspended from "@/components/AccountSuspended";
 import BannedUser from "@/components/BannedUser";
 import MainApp from "@/components/MainApp";
-import { ShieldAlert, Globe2 } from "lucide-react";
+import AuthLogin from "@/components/AuthLogin";
+import AuthForgotPassword from "@/components/AuthForgotPassword";
+import AuthMagicLink from "@/components/AuthMagicLink";
+import { ShieldAlert } from "lucide-react";
 import { getSession } from "@/lib/supabase-client";
 
 const queryClient = new QueryClient();
@@ -189,6 +192,9 @@ function AppContent() {
       {appPhase === "auth-friends" && <AuthFriendSuggestions key="auth-friends" />}
       {appPhase === "auth-permissions" && <AuthPermissions key="auth-permissions" />}
       {appPhase === "workspace-setup" && <WorkspaceSetup key="workspace-setup" />}
+      {appPhase === "auth-login" && <AuthLogin key="auth-login" />}
+      {appPhase === "auth-forgot-password" && <AuthForgotPassword key="auth-forgot-password" />}
+      {appPhase === "auth-magic-link" && <AuthMagicLink key="auth-magic-link" />}
       {appPhase === "account-suspended" && <AccountSuspended key="account-suspended" username={user?.username || ''} email={user?.email || ''} />}
       {appPhase === "banned" && <BannedUser key="banned" />}
     </AnimatePresence>
@@ -219,19 +225,11 @@ function IPBlocker({ children }: { children: React.ReactNode }) {
     return (
       <div className="w-full h-[100dvh] bg-background flex flex-col items-center justify-center p-6 text-center z-[100] absolute inset-0">
         <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center mb-4">
-          {reason === "vpn" ? (
-            <ShieldAlert className="w-8 h-8 text-rose-500" />
-          ) : (
-            <Globe2 className="w-8 h-8 text-rose-500" />
-          )}
+          <ShieldAlert className="w-8 h-8 text-rose-500" />
         </div>
-        <h1 className="text-[20px] font-bold text-foreground mb-2">
-          {reason === "vpn" ? "VPN Detected" : "Region Unavailable"}
-        </h1>
+        <h1 className="text-[20px] font-bold text-foreground mb-2">VPN Detected</h1>
         <p className="text-[14px] text-muted-foreground max-w-[280px]">
-          {reason === "vpn"
-            ? "Turn off VPN. Reelsy doesn't allow VPN usage to ensure safety and authenticity."
-            : "This app isn't available in your country yet."}
+          Turn off your VPN or proxy. Reelsy requires a real connection for safety and authenticity.
         </p>
       </div>
     );

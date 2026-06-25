@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { sendOTP, verifyOTP } from '../lib/otp';
+import { sendOTP, verifyOTP, generateMagicLinkToken, verifyMagicLinkToken } from '../lib/otp';
 import { hashPassword, verifyPassword, generateToken, generateUniqueUsername, generateBaseUsername, findAvailableUsername } from '../lib/auth-utils';
 import { getUsersCollection, ReelsyUser } from '../lib/mongodb';
 import { createSupabaseUser, getSupabaseUser, updateSupabaseUser, initSupabase, checkSupabaseUserStatus, banUserViaAdmin, unbanUserViaAdmin } from '../lib/supabase';
@@ -780,6 +780,147 @@ router.post('/unban-simple', async (req, res) => {
   } catch (error) {
     console.error('Unban error:', error);
     return res.status(500).json({ error: 'Failed to unban user' });
+  }
+});
+
+// Send magic link
+router.post('/send-magic-link', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+
+    const token = generateMagicLinkToken(email.toLowerCase());
+    const appUrl = process.env.APP_URL || `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:8080'}`;
+    const magicUrl = `${appUrl}?magic=${token}`;
+
+    const { sendEmailViaBrevo } = await import('../lib/email');
+    const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#f9fafb;padding:40px 0">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table width="480" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+<tr><td style="background:linear-gradient(135deg,#667eea,#764ba2);padding:36px 40px;text-align:center">
+<h1 style="margin:0;font-size:28px;color:#fff;font-weight:700">Reelsy</h1></td></tr>
+<tr><td style="padding:40px">
+<h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a">Sign in to Reelsy</h2>
+<p style="margin:0 0 28px;font-size:14px;color:#555;line-height:1.7">Click the button below to sign in. This link expires in 30 minutes.</p>
+<a href="${magicUrl}" style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;padding:14px 32px;border-radius:50px;font-weight:700;font-size:15px">Sign In to Reelsy</a>
+<p style="margin:24px 0 0;font-size:12px;color:#999">If you didn't request this, ignore this email.</p>
+</td></tr></table></td></tr></table></body></html>`;
+
+    await sendEmailViaBrevo(email.toLowerCase(), 'Sign in to Reelsy', html);
+    return res.json({ message: 'Magic link sent' });
+  } catch (error) {
+    req.log.error(error, 'Error sending magic link');
+    return res.status(500).json({ error: 'Failed to send magic link' });
+  }
+});
+
+// Verify magic link token
+router.get('/verify-magic-link', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const result = verifyMagicLinkToken(token);
+    if (!result.valid || !result.email) {
+      return res.status(401).json({ error: 'INVALID_OR_EXPIRED_LINK', message: 'This magic link is invalid or has expired' });
+    }
+
+    const usersCollection = await getUsersCollection();
+    const user = await usersCollection.findOne({ userEmail: result.email });
+    if (!user) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'No account found for this email' });
+    }
+
+    const jwtToken = generateToken({ userId: user._id, username: user.username, email: result.email });
+    return res.json({
+      message: 'Magic link verified',
+      user: {
+        id: user._id,
+        username: user.username,
+        displayName: user.displayName,
+        email: result.email,
+        age: user.age,
+        profileImage: user.profileImage,
+        interests: user.interests,
+        tier: user.tier || 'free',
+      },
+      token: jwtToken,
+    });
+  } catch (error) {
+    req.log.error(error, 'Error verifying magic link');
+    return res.status(500).json({ error: 'Magic link verification failed' });
+  }
+});
+
+// Forgot password — send reset link
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+
+    const usersCollection = await getUsersCollection();
+    const user = await usersCollection.findOne({ userEmail: email.toLowerCase() });
+
+    // Don't reveal whether user exists
+    if (!user || !user.emailPassword) {
+      return res.json({ message: 'If that email has a password account, a reset link has been sent.' });
+    }
+
+    // Reuse magic link token for password reset flow
+    const token = generateMagicLinkToken(email.toLowerCase());
+    const appUrl = process.env.APP_URL || `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:8080'}`;
+    const resetUrl = `${appUrl}?reset=${token}`;
+
+    const { sendEmailViaBrevo } = await import('../lib/email');
+    const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#f9fafb;padding:40px 0">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table width="480" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+<tr><td style="background:linear-gradient(135deg,#667eea,#764ba2);padding:36px 40px;text-align:center">
+<h1 style="margin:0;font-size:28px;color:#fff;font-weight:700">Reelsy</h1></td></tr>
+<tr><td style="padding:40px">
+<h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a">Reset Your Password</h2>
+<p style="margin:0 0 28px;font-size:14px;color:#555;line-height:1.7">Click the button below to reset your password. This link expires in 30 minutes.</p>
+<a href="${resetUrl}" style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;padding:14px 32px;border-radius:50px;font-weight:700;font-size:15px">Reset Password</a>
+<p style="margin:24px 0 0;font-size:12px;color:#999">If you didn't request this, ignore this email.</p>
+</td></tr></table></td></tr></table></body></html>`;
+
+    await sendEmailViaBrevo(email.toLowerCase(), 'Reset your Reelsy password', html);
+    return res.json({ message: 'If that email has a password account, a reset link has been sent.' });
+  } catch (error) {
+    req.log.error(error, 'Error sending password reset');
+    return res.status(500).json({ error: 'Failed to send reset email' });
+  }
+});
+
+// Get public profile by username
+router.get('/profile/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+    const usersCollection = await getUsersCollection();
+    const user = await usersCollection.findOne({ username: username.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.json({
+      username: user.username,
+      displayName: user.displayName,
+      profileImage: user.profileImage,
+      bio: user.bio,
+      tier: user.tier || 'free',
+      createdAt: user.createdAt,
+    });
+  } catch (error) {
+    req.log.error(error, 'Error fetching profile');
+    return res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
 
