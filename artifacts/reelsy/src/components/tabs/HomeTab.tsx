@@ -14,6 +14,7 @@ import { useAppContext } from "@/context/AppContext";
 import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import MediaViewer from "@/components/ui/MediaViewer";
 import { useEngagement } from "@/hooks/useEngagement";
+import { LottieEmoji } from "@/components/LottieEmoji";
 
 interface HomeTabProps { onNavVisible?: (v: boolean) => void; }
 
@@ -283,14 +284,14 @@ const CommentSheet = ({ post, onClose }: { post: PostData; onClose: () => void }
                 exit={{ opacity: 0, y: 15, scale: 0.95 }}
                 className="absolute left-4 right-4 bg-background/95 backdrop-blur-md rounded-2xl p-2 border border-secondary shadow-2xl flex justify-around items-center"
               >
-                {["😂", "😭", "🔥", "🎉","😎", "😍", "🤑"].map((emoji) => (
+                {["😂", "😭", "🔥", "🎉", "😎", "😍", "🤑"].map((emoji) => (
                   <motion.button
                     key={emoji}
                     whileTap={{ scale: 1.35 }}
                     onClick={() => handleEmojiClick(emoji)}
-                    className="text-2xl py-1 px-2 hover:bg-secondary/40 rounded-xl transition-all"
+                    className="py-1 px-1.5 hover:bg-secondary/40 rounded-xl transition-all flex items-center justify-center"
                   >
-                    {emoji}
+                    <LottieEmoji emoji={emoji} size={30} loop={false} />
                   </motion.button>
                 ))}
               </motion.div>

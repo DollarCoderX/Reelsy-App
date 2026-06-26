@@ -28,6 +28,7 @@ import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import { hasSeenFeatureIntro, markFeatureIntroSeen } from "@/lib/featureIntro";
 import { generateText } from "@/lib/ai";
 import UserProfile from "@/components/UserProfile";
+import { LottieEmoji } from "@/components/LottieEmoji";
 
 
 interface ChatTabProps { onNavVisible?: (v: boolean) => void; }
@@ -1039,9 +1040,9 @@ const WhatsAppEmojiPicker = ({
                     <button
                       key={idx}
                       onClick={() => onSelectEmoji(item.emoji)}
-                      className="w-full aspect-square flex items-center justify-center text-[22px] rounded-lg hover:bg-zinc-800/50 active:scale-90 transition-all"
+                      className="w-full aspect-square flex items-center justify-center rounded-lg hover:bg-zinc-800/50 active:scale-90 transition-all"
                     >
-                      {item.emoji}
+                      <LottieEmoji emoji={item.emoji} size={26} loop={false} />
                     </button>
                   ))}
                   {filteredEmojis.length === 0 && (
@@ -1060,9 +1061,9 @@ const WhatsAppEmojiPicker = ({
                       <button
                         key={idx}
                         onClick={() => onSelectEmoji(item.emoji)}
-                        className="w-full aspect-square flex items-center justify-center text-[22px] rounded-lg hover:bg-zinc-800/50 active:scale-90 transition-all"
+                        className="w-full aspect-square flex items-center justify-center rounded-lg hover:bg-zinc-800/50 active:scale-90 transition-all"
                       >
-                        {item.emoji}
+                        <LottieEmoji emoji={item.emoji} size={26} loop={false} />
                       </button>
                     ))}
                   </div>

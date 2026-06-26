@@ -13,7 +13,7 @@ const AuthMagicLink = () => {
   useEffect(() => {
     const checkToken = async () => {
       const params = new URLSearchParams(window.location.search);
-      const token = params.get("magic_token");
+      const token = params.get("magic") || params.get("magic_token");
       if (!token) return;
 
       try {
