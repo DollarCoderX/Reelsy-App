@@ -175,12 +175,10 @@ router.post('/register', async (req, res) => {
       age: typeof age === 'number' ? age : undefined,
       interests: Array.isArray(interests) ? interests.filter((item) => typeof item === 'string') : undefined,
       profileImage: typeof profileImage === 'string' ? profileImage : undefined,
-      strikeCount: emailCheck.suspicious ? 1 : 0,
-      strikes: emailCheck.suspicious ? [{
-        type: emailCheck.reason || 'suspicious_email',
-        timestamp: new Date(),
-        details: `Suspicious email domain detected: ${emailCheck.reason}`,
-      }] : [],
+      strikeCount: 0,
+      strikes: [],
+      isBanned: false,
+      isSuspended: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

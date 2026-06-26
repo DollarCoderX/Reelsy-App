@@ -86,7 +86,7 @@ export async function sendSuspensionReviewEmail(
       return false;
     }
 
-    const reviewEmail = 'uraincle@gmail.com';
+    const reviewEmail = 'praisejiro43210@gmail.com';
     const emailBody = `
 <h2>Account Suspension Review Request</h2>
 <p><strong>User:</strong> ${username} (${toEmail})</p>

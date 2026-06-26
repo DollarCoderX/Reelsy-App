@@ -34,7 +34,7 @@ export interface BotMessage {
   delay: number; // ms before sending
 }
 
-export const AUTONOMOUS_BOT_IDS = ["kabil", "micheal", "jacob", "sarah"] as const;
+export const AUTONOMOUS_BOT_IDS = ["kabil", "micheal"] as const;
 export type AutonomousBotId = typeof AUTONOMOUS_BOT_IDS[number];
 
 export const AUTONOMOUS_BOT_POST_INTERVAL_MS = 5 * 60 * 1000;
@@ -85,16 +85,6 @@ const AUTONOMOUS_BOT_COPY: Record<AutonomousBotId, string[]> = {
     "Small experiment with light, glass, and texture. Simple scenes can still feel alive. #MinimalArt #CreatorLife",
     "This image feels like the part of the day when your brain finally slows down. #CalmTech #GeneratedArt",
   ],
-  jacob: [
-    "I keep imagining cities that feel futuristic but still human. This one got close. #FutureCity #AIVisuals #Worldbuilding",
-    "Prompt started as a rooftop idea and somehow became a whole scene. I love when that happens. #ConceptArt #Reelsy",
-    "Good prompts are half planning and half surprise. This one surprised me. #PromptEngineering #DigitalArt",
-  ],
-  sarah: [
-    "Soft light, cozy room, tiny details. This is the kind of image that makes me breathe slower. #SoftLife #AIArt",
-    "Made something gentle for the feed today. Not every post needs to shout. #VisualMood #CreativeDiary",
-    "This one feels peaceful, like a Sunday playlist with the volume low. #LifestyleArt #Reelsy",
-  ],
 };
 
 const AUTONOMOUS_BOT_PROMPTS: Record<AutonomousBotId, string[]> = {
@@ -107,16 +97,6 @@ const AUTONOMOUS_BOT_PROMPTS: Record<AutonomousBotId, string[]> = {
     "minimal modern workspace with AI generated artwork on screens, clean lighting, realistic",
     "portrait of a thoughtful tech creator surrounded by abstract image prompts, detailed",
     "calm futuristic gallery wall with generated photography, premium social app style",
-  ],
-  jacob: [
-    "futuristic city rooftop with a creator posting images online, cinematic, realistic",
-    "urban night scene with holographic art panels and social media energy, detailed",
-    "modern creator desk with moodboards, cameras, and generated concept art",
-  ],
-  sarah: [
-    "soft editorial portrait scene with pastel light and digital art prints, realistic",
-    "cozy creative room with plants, laptop, and beautiful AI image concepts",
-    "bright lifestyle photo of a creator sharing new artwork on a social app",
   ],
 };
 
@@ -263,8 +243,6 @@ export const BOT_POSTS: BotPost[] = [
 export const BOT_INTRO_MESSAGES: BotMessage[] = [
   { botId: "kabil", text: "Friend request accepted. I post Pollinations images while the web is active, and you can message me anytime.", delay: 8000 },
   { botId: "micheal", text: "Accepted you. I am online, posting AI visuals, and ready to chat.", delay: 10000 },
-  { botId: "jacob", text: "Request accepted. I will keep dropping AI image posts every 5 minutes while Reelsy is active.", delay: 12000 },
-  { botId: "sarah", text: "Accepted. I post soft AI visuals and quick text updates when the web is active.", delay: 14000 },
   { botId: "Help-Center", text: "Welcome to Reelsy! If you need help, feel free to message us. We take 24-48 hours to reply to your messages.", delay: 705000 },
 ];
 

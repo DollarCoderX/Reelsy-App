@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppContext } from '@/context/AppContext';
-import { getSession } from '@/lib/supabase-client';
+import { getSession, signOut as supabaseSignOut } from '@/lib/supabase-client';
 import { Button } from './ui/button';
 
 const REVIEW_DRAFT_KEY = 'reelsy_ban_review_draft';
@@ -134,13 +134,16 @@ export const BannedUser = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await supabaseSignOut(); } catch {}
     localStorage.removeItem('reelsy_user');
     localStorage.removeItem('authToken');
     localStorage.removeItem('supabaseId');
+    localStorage.removeItem('reelsy_auth_token');
+    localStorage.setItem('reelsy_explicitly_logged_out', '1');
     sessionStorage.removeItem(RESTRICTION_STORAGE_KEY);
     setUser(null);
-    setAppPhase('auth-email');
+    setAppPhase('welcome');
   };
 
   const syncAccountStatus = async (silent = false) => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { signOut as supabaseSignOut } from "@/lib/supabase-client";
 
 import { AppLanguage, useAppContext } from "@/context/AppContext";
 import {
@@ -1326,9 +1327,14 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
   };
   const TierIcon = { free: Star, premium: Crown, "premium+": Flame, gold: Crown }[tier];
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try { await supabaseSignOut(); } catch {}
     setUser(null);
     localStorage.removeItem("reelsy_user");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("supabaseId");
+    localStorage.removeItem("reelsy_auth_token");
+    localStorage.setItem("reelsy_explicitly_logged_out", "1");
     setAppPhase("welcome");
   };
 

@@ -12,6 +12,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // Google OAuth sign in
 export const signInWithGoogle = async () => {
+  // Clear explicit logout flag so Supabase session check works after OAuth redirect
+  localStorage.removeItem('reelsy_explicitly_logged_out');
   const siteUrl = (import.meta.env.VITE_SITE_URL as string | undefined)?.trim();
   const redirectTo = siteUrl || window.location.origin;
 

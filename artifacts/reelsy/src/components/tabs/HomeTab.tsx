@@ -1263,6 +1263,8 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     } catch { return []; }
   });
   const [reshareTarget, setReshareTarget] = useState<PostData | null>(null);
+  const [isSendingPost, setIsSendingPost] = useState(false);
+  const [postSentFlash, setPostSentFlash] = useState(false);
 
   const [seenSheetPost, setSeenSheetPost] = useState<PostData | null>(null);
   const [browserOpenPost, setBrowserOpenPost] = useState<PostData | null>(null);
@@ -1414,6 +1416,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
   };
 
   const handleNewPost = (postData: { type: "text" | "image" | "video"; content: string; media?: string | string[]; music?: { title: string; artist: string; url: string }; location?: { lat: number; lng: number; name: string }; aiGenerated?: boolean }) => {
+    setIsSendingPost(true);
     const newPost: PostData = {
       id: `user-${Date.now()}`,
       type: postData.type,
@@ -1433,11 +1436,16 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
         media: reshareTarget.media,
       } : undefined,
     };
-    setUserPosts((p) => {
-      const updated = [newPost, ...p];
-      localStorage.setItem("reelsy_user_posts", JSON.stringify(updated));
-      return updated;
-    });
+    setTimeout(() => {
+      setUserPosts((p) => {
+        const updated = [newPost, ...p];
+        localStorage.setItem("reelsy_user_posts", JSON.stringify(updated));
+        return updated;
+      });
+      setIsSendingPost(false);
+      setPostSentFlash(true);
+      setTimeout(() => setPostSentFlash(false), 2200);
+    }, 1400);
   };
 
   const AD_POST_1: PostData = {

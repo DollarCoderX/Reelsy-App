@@ -104,6 +104,11 @@ function AppContent() {
         }
       }
 
+      // Skip Supabase session check if user explicitly logged out
+      if (localStorage.getItem('reelsy_explicitly_logged_out') === '1') {
+        return;
+      }
+
       // Try to get fresh Supabase session (user just completed OAuth redirect)
       try {
         const session = await getSession();
