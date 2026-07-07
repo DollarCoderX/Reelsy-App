@@ -7,6 +7,8 @@ import engagementRouter from "./engagement";
 import groqRouter from "./groq";
 import postsRouter from "./posts";
 import usersRouter from "./users";
+import friendsRouter from "./friends";
+import messagesRouter from "./messages";
 
 const router: IRouter = Router();
 
@@ -18,6 +20,8 @@ router.use(mediaRouter);
 router.use(groqRouter);
 router.use(postsRouter);
 router.use(usersRouter);
+router.use(friendsRouter);
+router.use(messagesRouter);
 
 router.get("/music/search", async (req, res) => {
   const { q } = req.query;

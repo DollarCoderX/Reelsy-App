@@ -10,6 +10,8 @@ import FeatureIntroSheet from "./FeatureIntroSheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppContext } from "@/context/AppContext";
 import { useFeatureIntro } from "@/context/FeatureIntroContext";
+import { NotificationProvider, useNotifications } from "@/context/NotificationContext";
+import { NotificationToast } from "./NotificationToast";
 import reelsyLogo from "@assets/j.png";
 
 const TABS_MAP = {
@@ -22,7 +24,17 @@ const TABS_MAP = {
 
 type UiState = { tab?: string; threadId?: string | null };
 
-const MainApp = () => {
+// Safe hook that returns zeros if NotificationContext not yet mounted
+function useNotificationsIfAvailable() {
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useNotifications();
+  } catch {
+    return { unreadCount: 0, unreadMessageCount: 0 };
+  }
+}
+
+const MainAppInner = () => {
   const [activeTab, setActiveTab] = useState("home");
   const { featureIntro, handleFeatureIntroClose } = useFeatureIntro();
 
@@ -159,6 +171,8 @@ const MainApp = () => {
     setHideNav(!visible);
   }, []);
 
+  const { unreadCount, unreadMessageCount } = useNotificationsIfAvailable();
+
   const renderTab = () => {
     switch (activeTab) {
       case "home":
@@ -190,6 +204,12 @@ const MainApp = () => {
       default:
         return <HomeTab onNavVisible={onNavVisible} />;
     }
+  };
+
+  const getTabBadge = (tabId: string) => {
+    if (tabId === "activity") return unreadCount;
+    if (tabId === "chat") return unreadMessageCount;
+    return 0;
   };
 
   const avatarUrl =
@@ -283,18 +303,25 @@ const MainApp = () => {
                           transition={{ type: "spring", stiffness: 600, damping: 28 }}
                           aria-label={t(tab.label)}
                         >
-                          <Icon
-                            className="transition-colors animate-none"
-                            style={{
-                              width: 22,
-                              height: 22,
-                              color: isActive
-                                ? "hsl(var(--foreground))"
-                                : "hsl(var(--muted-foreground))",
-                              fill: isActive ? "hsl(var(--foreground))" : "none",
-                              strokeWidth: isActive ? 2 : 1.7,
-                            }}
-                          />
+                          <div className="relative">
+                            <Icon
+                              className="transition-colors animate-none"
+                              style={{
+                                width: 22,
+                                height: 22,
+                                color: isActive
+                                  ? "hsl(var(--foreground))"
+                                  : "hsl(var(--muted-foreground))",
+                                fill: isActive ? "hsl(var(--foreground))" : "none",
+                                strokeWidth: isActive ? 2 : 1.7,
+                              }}
+                            />
+                            {getTabBadge(tab.id) > 0 && (
+                              <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center leading-none">
+                                {getTabBadge(tab.id) > 9 ? "9+" : getTabBadge(tab.id)}
+                              </span>
+                            )}
+                          </div>
                           {isActive && (
                             <motion.div
                               layoutId="navDot"
@@ -371,7 +398,14 @@ const MainApp = () => {
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 }`}
               >
-                <Icon style={{ width: 18, height: 18, strokeWidth: isActive ? 2.2 : 1.8 }} />
+                <div className="relative">
+                  <Icon style={{ width: 18, height: 18, strokeWidth: isActive ? 2.2 : 1.8 }} />
+                  {getTabBadge(tab.id) > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center leading-none">
+                      {getTabBadge(tab.id) > 9 ? "9+" : getTabBadge(tab.id)}
+                    </span>
+                  )}
+                </div>
                 <span className="font-semibold text-[13px]">{t(tab.label)}</span>
               </motion.button>
             );
@@ -457,6 +491,19 @@ const MainApp = () => {
         />
       </div>
     </motion.div>
+  );
+};
+
+// Wrapper that provides NotificationContext to the inner app
+const MainApp = () => {
+  const { user } = useAppContext();
+  const userId = user?.supabaseId || user?.username || undefined;
+
+  return (
+    <NotificationProvider userId={userId}>
+      <MainAppInner />
+      <NotificationToast />
+    </NotificationProvider>
   );
 };
 

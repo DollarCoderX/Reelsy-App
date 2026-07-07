@@ -1263,6 +1263,36 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+
+  // ---- Real MongoDB feed ----
+  const [apiFeedPosts, setApiFeedPosts] = useState<PostData[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/posts?limit=40");
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        const posts: PostData[] = (json.posts || []).map((p: any) => ({
+          id: p._id || p.id,
+          type: (p.mediaType === "video" ? "video" : p.mediaUrl ? "image" : "text") as "text" | "image" | "video",
+          content: p.content || "",
+          media: p.mediaUrl || undefined,
+          likes: p.likes || 0,
+          replies: p.comments || 0,
+          reposts: p.reshares || 0,
+          views: p.views || 0,
+          time: p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "recently",
+          isUserPost: false,
+          authorName: p.author?.displayName || p.author?.username || "User",
+          authorAvatar: p.author?.profileImage || undefined,
+          music: p.music || undefined,
+        }));
+        if (!cancelled) setApiFeedPosts(posts);
+      } catch { /* offline – no-op */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [reshareTarget, setReshareTarget] = useState<PostData | null>(null);
   const [isSendingPost, setIsSendingPost] = useState(false);
   const [postSentFlash, setPostSentFlash] = useState(false);
@@ -1567,13 +1597,25 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     time: "Sponsored",
   };
 
+  // Merge user posts + real API feed + ads, deduplicated
+  const mergedFeedPosts = useMemo(() => {
+    const seen = new Set<string>();
+    const out: PostData[] = [];
+    for (const p of userPosts) { if (!seen.has(p.id)) { seen.add(p.id); out.push(p); } }
+    for (const p of apiFeedPosts) { if (!seen.has(p.id)) { seen.add(p.id); out.push(p); } }
+    return out;
+  }, [userPosts, apiFeedPosts]);
+
   const allPosts: PostData[] = [
-    ...userPosts.slice(0, 3),
+    ...mergedFeedPosts.slice(0, 4),
     AD_POST_1,
-    ...userPosts.slice(3),
+    ...mergedFeedPosts.slice(4, 8),
     AD_POST_2,
+    ...mergedFeedPosts.slice(8, 14),
     AD_POST_3,
+    ...mergedFeedPosts.slice(14, 20),
     AD_POST_4,
+    ...mergedFeedPosts.slice(20),
   ];
 
 

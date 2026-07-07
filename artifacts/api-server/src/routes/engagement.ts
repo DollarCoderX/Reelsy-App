@@ -196,6 +196,22 @@ router.put('/notifications/:notificationId/read', async (req, res) => {
   }
 });
 
+// Mark all notifications read for a user
+router.put('/notifications/read-all', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+
+    const { getNotificationsCollection } = await import('../lib/engagement');
+    const col = await getNotificationsCollection();
+    const result = await col.updateMany({ userId, read: false }, { $set: { read: true } });
+    return res.json({ updated: result.modifiedCount });
+  } catch (error) {
+    req.log.error(error, 'Error marking all notifications read');
+    return res.status(500).json({ error: 'Failed to mark all notifications read' });
+  }
+});
+
 // Check if user liked post
 router.get('/:postId/liked/:userId', async (req, res) => {
   try {

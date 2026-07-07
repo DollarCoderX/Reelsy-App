@@ -18,6 +18,7 @@ router.get('/users/search', async (req, res) => {
       $or: [
         { username: regex },
         { displayName: regex },
+        { userEmail: q }, // exact email match for privacy
       ],
       isBanned: { $ne: true },
       isSuspended: { $ne: true },
