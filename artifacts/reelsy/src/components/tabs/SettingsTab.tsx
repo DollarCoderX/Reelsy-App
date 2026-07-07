@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { signOut as supabaseSignOut } from "@/lib/supabase-client";
 
@@ -7,7 +7,7 @@ import {
   User, Mail, Shield, Bell, Globe, Moon, HelpCircle, FileText, LogOut, ChevronRight,
   Sun, Camera, Lock, Star, Check, X, Crown, VerifiedIcon, Flame, Hash, ChevronLeft,
   Eye, EyeOff, Users, Clock, Infinity as InfinityIcon, MessageSquare, Loader2, Palette,
-  Send, Phone,
+  Send, Phone, Plus, Sparkles, Bot, ChevronDown, UserCircle2, LogIn,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AvatarCustomizer from "../AvatarCustomizer";
@@ -844,23 +844,7 @@ const LanguageSheet = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-// ---- Help Center Sheet ----
-const FAQ_ITEMS = [
-  { q: "How long do my posts last?", a: "Free users' posts last 24 hours. Premium users can set custom retention up to 7 days." },
-  { q: "What is Ghost Delete?", a: "Available on Premium+, Ghost Delete removes your messages without leaving a 'deleted' trace in the chat." },
-  { q: "How do I upgrade my plan?", a: "Go to Settings > your current plan banner, then select a new tier and tap Upgrade." },
-  { q: "Is Reelsy really ad-free?", a: "No. Reelsy is not ad-free. But reelsy carefully utilizes ad to make it comfotable for users." },
-  { q: "How do I change my avatar?", a: "Go to Settings and tap your profile picture or the camera icon to open the Avatar Customizer." },
-  { q: "What does anonymous mode do?", a: "This feature is currently only available for premium and premium plus tier, which allows users to hide themselves from being searched on reelsy." },
-  { q: "What is Reelsy top priority?", a: "Reelsy top priority is privacy and fast communication." },
-  { q: "What is the difference between Reelsy Lite and Reelsy?", a: "Reelsy Lite is a more friendly app size, uses less memories and storage but has limited features, it is mostly used by idividuals who are using lower budget phones or user's who can't use the main app due to restriction reasons. While the first published main Reelsy apps is more effective for social communication with friends and family." },
-  { q: "Does Reelsy do promo for subscription?", a: "Unfortnately, No. Reelsy doesn't do promo for subcriptions and advice user to only subscribe through the Reelsy app and not from friends, family or stranger, to avoid fraud." },
-  { q: "Can i become a premium or premium plus user for free?", a: "Yes, few people know that Reelsy does in app competitions, which gives rewards based on activities and doesn't require money." },
-
-
-
-];
-
+// ---- Help Center AI ----
 const REELSY_HELP_CONTEXT = `
 Public Reelsy help facts:
 - Reelsy is a social app for private messaging, friends, posts, drafts, music attachments, hashtags, mentions, and avatar customization.
@@ -871,15 +855,29 @@ Public Reelsy help facts:
 - Ghost Delete is a Premium+ message deletion option.
 - Users upgrade from Settings by tapping the current plan banner.
 - Reelsy prioritizes privacy and fast communication.
+- Reelsy is not ad-free; ads are carefully integrated to be non-intrusive.
+- Reelsy Lite is a lighter version with limited features for lower-end devices.
+- Reelsy runs in-app competitions with rewards — no payment required.
+- Subscriptions should only be bought through the official Reelsy app to avoid fraud.
 Do not request, infer, or reveal private user data, passwords, payment details, exact locations, or message contents.
 `;
 
-const askPollinationsHelp = async (question: string) => {
-  const prompt = `${REELSY_HELP_CONTEXT}
-Answer this Reelsy help question in a friendly support tone. If it asks for private data, refuse briefly and explain what the user can do safely.
+const HELP_CATEGORIES = ["General", "Plans & Pricing", "Privacy & Safety", "Features", "Account", "Messages"];
+const HELP_SUGGESTIONS = [
+  "How long do posts last?",
+  "What is Ghost Delete?",
+  "How do I upgrade my plan?",
+  "How do I change my avatar?",
+  "Is Reelsy ad-free?",
+  "Can I get premium for free?",
+];
 
-Question:
-${question}`;
+const askPollinationsHelp = async (question: string, category = "General") => {
+  const prompt = `${REELSY_HELP_CONTEXT}
+Category: ${category}
+Answer this Reelsy help question in a friendly, concise support tone (2-4 sentences max). If it asks for private data, refuse briefly.
+
+Question: ${question}`;
   const response = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`);
   if (!response.ok) throw new Error("Help AI request failed");
   const text = await response.text();
@@ -887,24 +885,30 @@ ${question}`;
 };
 
 const HelpCenterSheet = ({ onClose }: { onClose: () => void }) => {
-  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [category, setCategory] = useState("General");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<{ id: number; from: "user" | "ai"; text: string }[]>([
-    { id: 1, from: "ai", text: "Ask me anything about Reelsy features, plans, drafts, messages, or safety." },
+    { id: 1, from: "ai", text: "Hi! I'm Reelsy Help AI 🤖✨\nAsk me anything about features, plans, privacy, or your account — I'm here to help!" },
   ]);
   const [isAsking, setIsAsking] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const sendHelpQuestion = async () => {
-    const question = chatInput.trim();
-    if (!question || isAsking) return;
-    setChatMessages((p) => [...p, { id: Date.now(), from: "user", text: question }]);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, isAsking]);
+
+  const sendHelpQuestion = async (question?: string) => {
+    const q = (question ?? chatInput).trim();
+    if (!q || isAsking) return;
+    const userMsg = { id: Date.now(), from: "user" as const, text: q };
+    setChatMessages((p) => [...p, userMsg]);
     setChatInput("");
     setIsAsking(true);
     try {
-      const answer = await askPollinationsHelp(question);
-      setChatMessages((p) => [...p, { id: Date.now() + 1, from: "ai", text: answer || "I can help with Reelsy features, plans, drafts, messages, and safety settings." }]);
-    } catch (e) {
-      setChatMessages((p) => [...p, { id: Date.now() + 1, from: "ai", text: "I could not reach the help AI right now, but you can still check the FAQs above or contact support from Settings." }]);
+      const answer = await askPollinationsHelp(q, category);
+      setChatMessages((p) => [...p, { id: Date.now() + 1, from: "ai", text: answer || "I can help with Reelsy features, plans, messages, and safety." }]);
+    } catch {
+      setChatMessages((p) => [...p, { id: Date.now() + 1, from: "ai", text: "I couldn't reach the help service right now. Please try again in a moment or contact support from Settings." }]);
     } finally {
       setIsAsking(false);
     }
@@ -914,76 +918,303 @@ const HelpCenterSheet = ({ onClose }: { onClose: () => void }) => {
     <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
       transition={{ type: "spring", stiffness: 280, damping: 30 }}
       className="fixed inset-0 z-[100] bg-background flex flex-col">
+
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between px-4 pt-5 pb-3 border-b border-secondary/40">
+        <motion.button whileTap={{ scale: 0.9 }} onClick={onClose}
+          className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
+          <X className="w-4 h-4" />
+        </motion.button>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
+          </div>
+          <p className="font-bold text-[15px]">Help Center</p>
+        </div>
+        <div className="w-9" />
+      </div>
+
+      {/* Category chips */}
+      <div className="shrink-0 px-4 pt-3 pb-2 flex gap-2 overflow-x-auto no-scrollbar">
+        {HELP_CATEGORIES.map((cat) => (
+          <button key={cat} onClick={() => setCategory(cat)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all ${category === cat ? "bg-foreground text-background" : "bg-secondary text-muted-foreground"}`}>
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Chat area */}
+      <div className="flex-1 overflow-y-auto px-4 pb-3 space-y-3">
+        {chatMessages.map((m, i) => (
+          <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i === chatMessages.length - 1 ? 0 : 0 }}
+            className={`flex items-end gap-2 ${m.from === "user" ? "flex-row-reverse" : "flex-row"}`}>
+            {m.from === "ai" && (
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mb-0.5">
+                <Bot className="w-3.5 h-3.5 text-white" />
+              </div>
+            )}
+            <div className={`max-w-[82%] rounded-2xl px-4 py-3 ${m.from === "user" ? "bg-foreground text-background rounded-br-sm" : "bg-secondary/70 text-foreground rounded-bl-sm"}`}>
+              {m.from === "ai" && (
+                <p className="text-[9px] font-bold text-violet-500 uppercase tracking-wider mb-1">Reelsy AI · {category}</p>
+              )}
+              <p className="text-[13px] leading-relaxed whitespace-pre-line">{m.text}</p>
+            </div>
+          </motion.div>
+        ))}
+
+        {isAsking && (
+          <div className="flex items-end gap-2">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
+              <Bot className="w-3.5 h-3.5 text-white" />
+            </div>
+            <div className="bg-secondary/70 rounded-2xl rounded-bl-sm px-4 py-3">
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <motion.div key={i} animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.18 }}
+                    className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60" />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quick suggestions (only when few messages) */}
+        {chatMessages.length <= 2 && !isAsking && (
+          <div className="pt-1">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2.5 px-1">Suggested questions</p>
+            <div className="flex flex-wrap gap-2">
+              {HELP_SUGGESTIONS.map((s) => (
+                <button key={s} onClick={() => sendHelpQuestion(s)}
+                  className="px-3 py-1.5 rounded-full bg-secondary border border-secondary text-[11px] font-medium text-foreground hover:bg-secondary/80 transition-colors">
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div ref={chatEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="shrink-0 px-4 pb-10 pt-3 border-t border-secondary/40">
+        <div className="flex items-center gap-2 bg-secondary rounded-2xl px-4 py-2">
+          <input
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendHelpQuestion()}
+            placeholder={`Ask about ${category.toLowerCase()}…`}
+            style={{ fontSize: 14 }}
+            className="flex-1 bg-transparent outline-none py-1.5"
+          />
+          <motion.button whileTap={{ scale: 0.85 }} onClick={() => sendHelpQuestion()}
+            disabled={isAsking || !chatInput.trim()}
+            className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white disabled:opacity-40 flex items-center justify-center shrink-0">
+            <Send className="h-3.5 w-3.5" />
+          </motion.button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// ---- Multi-Account Sheet ----
+const MULTI_ACCOUNT_KEY = "reelsy_extra_accounts";
+type SavedAccount = { id: string; username: string; displayName: string; avatar: string; tier: string; addedAt: number };
+
+const MultiAccountSheet = ({ onClose }: { onClose: () => void }) => {
+  const { user, setUser, tier, setTier } = useAppContext();
+
+  const [accounts, setAccounts] = useState<SavedAccount[]>(() => {
+    try { return JSON.parse(localStorage.getItem(MULTI_ACCOUNT_KEY) || "[]"); } catch { return []; }
+  });
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ username: "", displayName: "" });
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [done, setDone] = useState("");
+
+  const saveAccounts = (list: SavedAccount[]) => {
+    localStorage.setItem(MULTI_ACCOUNT_KEY, JSON.stringify(list));
+    setAccounts(list);
+  };
+
+  const addAccount = () => {
+    const username = form.username.trim().replace(/^@/, "");
+    const displayName = form.displayName.trim();
+    if (!username || !displayName) return;
+    if (accounts.find((a) => a.username === username) || username === user?.username) return;
+    const seed = username + Date.now();
+    const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4`;
+    const newAcc: SavedAccount = { id: `acc-${Date.now()}`, username, displayName, avatar, tier: "free", addedAt: Date.now() };
+    saveAccounts([...accounts, newAcc]);
+    setForm({ username: "", displayName: "" });
+    setAdding(false);
+  };
+
+  const switchAccount = (acc: SavedAccount) => {
+    if (!user) return;
+    // Snapshot current account back into localStorage
+    const currentSnap: SavedAccount = {
+      id: `acc-current-${Date.now()}`,
+      username: user.username,
+      displayName: user.nickname || user.username,
+      avatar: typeof user.avatar === "string" && !user.avatar.startsWith("<") ? user.avatar : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`,
+      tier,
+      addedAt: Date.now(),
+    };
+    const remaining = accounts.filter((a) => a.id !== acc.id);
+    saveAccounts([...remaining, currentSnap]);
+    setSwitching(acc.id);
+    setTimeout(() => {
+      setUser({
+        ...user,
+        username: acc.username,
+        nickname: acc.displayName,
+        avatar: acc.avatar,
+      });
+      setTier(acc.tier as any);
+      setSwitching(null);
+      setDone(acc.displayName);
+      setTimeout(onClose, 1200);
+    }, 900);
+  };
+
+  const removeAccount = (id: string) => saveAccounts(accounts.filter((a) => a.id !== id));
+
+  if (tier === "free") {
+    return (
+      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 280, damping: 30 }}
+        className="fixed inset-0 z-[100] bg-background flex flex-col items-center justify-center px-8 gap-5">
+        <div className="w-16 h-16 rounded-3xl bg-secondary flex items-center justify-center">
+          <Users className="w-8 h-8 text-muted-foreground" />
+        </div>
+        <p className="font-bold text-[17px] text-center">Multi-Account is a Pro Feature</p>
+        <p className="text-[13px] text-muted-foreground text-center leading-relaxed">
+          Upgrade to Premium or higher to add and seamlessly switch between multiple Reelsy accounts.
+        </p>
+        <motion.button whileTap={{ scale: 0.97 }} onClick={onClose}
+          className="w-full py-4 rounded-full bg-foreground text-background font-bold text-[14px]">Got it</motion.button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+      transition={{ type: "spring", stiffness: 280, damping: 30 }}
+      className="fixed inset-0 z-[100] bg-background flex flex-col">
+
       <div className="shrink-0 flex items-center justify-between px-4 pt-5 pb-3">
         <motion.button whileTap={{ scale: 0.9 }} onClick={onClose}
           className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
           <X className="w-4 h-4" />
         </motion.button>
-        <p className="font-bold text-[15px]">Help Center</p>
-        <div className="w-9" />
+        <p className="font-bold text-[15px]">Accounts</p>
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => setAdding(true)}
+          className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
+          <Plus className="w-4 h-4" />
+        </motion.button>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 space-y-2 pb-4">
-        <p className="text-[12px] text-muted-foreground mb-3">Frequently asked questions</p>
-        {FAQ_ITEMS.map((item, i) => (
-          <motion.div key={i} className="bg-secondary/50 rounded-2xl overflow-hidden">
-            <button onClick={() => setOpenIdx(openIdx === i ? null : i)}
-              className="w-full flex items-center justify-between px-4 py-3.5 text-left">
-              <span className="font-medium text-[13px] pr-3 flex-1">{item.q}</span>
-              <motion.div animate={{ rotate: openIdx === i ? 45 : 0 }} transition={{ duration: 0.18 }}>
-                <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0" strokeWidth={1.8} />
-              </motion.div>
-            </button>
-            <AnimatePresence>
-              {openIdx === i && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-                  className="overflow-hidden">
-                  <p className="px-4 pb-4 text-[12px] text-muted-foreground leading-relaxed">{item.a}</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        ))}
 
-        <div className="pt-4">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">AI Help</p>
-          <div className="rounded-2xl bg-secondary/40 p-3 space-y-2">
-            <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
-              {chatMessages.map((m) => (
-                <div key={m.id} className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[84%] rounded-2xl px-3 py-2 ${m.from === "user" ? "bg-foreground text-background" : "bg-background text-foreground"}`}>
-                    {m.from === "ai" && (
-                      <span className="mb-1 inline-flex rounded-full bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-bold text-violet-600">Ai</span>
+      <div className="flex-1 overflow-y-auto px-4 space-y-4 pb-10">
+        {/* Active account */}
+        <div>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">Active Account</p>
+          <div className="bg-secondary/50 rounded-2xl px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-secondary">
+              {user?.avatar && !user.avatar.startsWith("<")
+                ? <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+                : <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username}`} alt="" className="w-full h-full" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[13px] truncate">{user?.nickname || user?.username}</p>
+              <p className="text-[11px] text-muted-foreground">@{user?.username} · {tier}</p>
+            </div>
+            <Check className="w-4 h-4 shrink-0 text-emerald-500" strokeWidth={2.5} />
+          </div>
+        </div>
+
+        {/* Saved accounts */}
+        {accounts.length > 0 && (
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">Switch to</p>
+            <div className="bg-secondary/50 rounded-2xl overflow-hidden divide-y divide-background/60">
+              {accounts.map((acc) => (
+                <div key={acc.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-secondary shrink-0">
+                    <img src={acc.avatar} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0" onClick={() => switchAccount(acc)}>
+                    <p className="font-semibold text-[13px] truncate">{acc.displayName}</p>
+                    <p className="text-[11px] text-muted-foreground">@{acc.username}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {switching === acc.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <motion.button whileTap={{ scale: 0.9 }} onClick={() => switchAccount(acc)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground text-background text-[11px] font-bold">
+                        <LogIn className="w-3 h-3" /> Switch
+                      </motion.button>
                     )}
-                    <p className="text-[12px] leading-relaxed">{m.text}</p>
+                    <button onClick={() => removeAccount(acc.id)} className="w-7 h-7 rounded-full bg-rose-500/10 flex items-center justify-center">
+                      <X className="w-3 h-3 text-rose-500" />
+                    </button>
                   </div>
                 </div>
               ))}
-              {isAsking && (
-                <div className="flex justify-start">
-                  <div className="flex items-center gap-2 rounded-2xl bg-background px-3 py-2 text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span className="text-[12px] font-medium">Writing...</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendHelpQuestion()}
-                placeholder="Ask Reelsy Help..."
-                style={{ fontSize: 14 }}
-                className="flex-1 rounded-2xl bg-background px-3 py-2.5 outline-none"
-              />
-              <button onClick={sendHelpQuestion} disabled={isAsking || !chatInput.trim()}
-                className="h-10 w-10 rounded-full bg-foreground text-background disabled:opacity-40 flex items-center justify-center">
-                <Send className="h-4 w-4" />
-              </button>
             </div>
           </div>
-        </div>
+        )}
+
+        {accounts.length === 0 && !adding && (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <UserCircle2 className="w-12 h-12 text-muted-foreground/40" />
+            <p className="text-[13px] text-muted-foreground">No other accounts yet.<br />Tap + to add one.</p>
+          </div>
+        )}
+
+        {/* Add account form */}
+        <AnimatePresence>
+          {adding && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              className="bg-secondary/50 rounded-2xl p-4 space-y-3">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 px-1">Add Account</p>
+              {[
+                { key: "username", placeholder: "Username (e.g. johndoe)", type: "text" },
+                { key: "displayName", placeholder: "Display name", type: "text" },
+              ].map((f) => (
+                <input key={f.key} type={f.type} placeholder={f.placeholder} style={{ fontSize: 14 }}
+                  value={form[f.key as keyof typeof form]}
+                  onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
+                  className="w-full h-[48px] px-4 bg-background rounded-xl font-medium outline-none" />
+              ))}
+              <div className="flex gap-2 pt-1">
+                <motion.button whileTap={{ scale: 0.97 }} onClick={addAccount}
+                  disabled={!form.username.trim() || !form.displayName.trim()}
+                  className="flex-1 py-3 rounded-full bg-foreground text-background font-bold text-[13px] disabled:opacity-40">
+                  Add Account
+                </motion.button>
+                <button onClick={() => { setAdding(false); setForm({ username: "", displayName: "" }); }}
+                  className="px-4 py-3 rounded-full bg-background text-[13px] font-medium">
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {done && (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+              className="flex items-center justify-center gap-2 py-4 rounded-full bg-emerald-500 text-white font-bold text-[14px]">
+              <Check className="w-5 h-5" strokeWidth={2.5} /> Switched to {done}!
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
@@ -1316,7 +1547,7 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
   const [betaFeatures, setBetaFeatures] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
-  const [sheet, setSheet] = useState<"subscription" | "virtualNumber" | "editProfile" | "privacy" | "notifications" | "retention" | "language" | "help" | "support" | "terms" | "rate" | "password" | "verification" | null>(null);
+  const [sheet, setSheet] = useState<"subscription" | "virtualNumber" | "editProfile" | "privacy" | "notifications" | "retention" | "language" | "help" | "support" | "terms" | "rate" | "password" | "verification" | "accounts" | null>(null);
 
   const tierColors: Record<string, string> = {
     free: "text-muted-foreground", premium: "text-amber-500",
@@ -1438,6 +1669,7 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
             <SettingRow icon={User} label={t("Edit Profile")} onPress={() => setSheet("editProfile")} />
             <SettingRow icon={Mail} label={t("Email")} value={user?.email ? user.email.replace(/(.{2}).*(@.*)/, "$1…$2") : undefined} />
             <PhoneNumberRow />
+            <SettingRow icon={Users} label="Accounts" value={tier === "free" ? "Pro" : undefined} onPress={() => setSheet("accounts")} />
             <SettingRow icon={VerifiedIcon} label={t("Get Verified Badge")} onPress={() => setSheet("verification")} />
             <SettingRow icon={Shield} label={t("Privacy")} onPress={() => setSheet("privacy")} />
           </Section>
@@ -1553,6 +1785,7 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
         {sheet === "terms" && <TermsSheet onClose={() => setSheet(null)} />}
         {sheet === "rate" && <RateReelsySheet onClose={() => setSheet(null)} />}
         {sheet === "password" && <ChangePasswordSheet onClose={() => setSheet(null)} />}
+        {sheet === "accounts" && <MultiAccountSheet onClose={() => setSheet(null)} />}
         {sheet === "verification" && <VerificationModal onClose={() => setSheet(null)} onSubmit={() => {}} onApproved={(approved) => { if (user && approved) setUser({ ...user, verified: true }); setSheet(null); }} />}
       </AnimatePresence>
     </>

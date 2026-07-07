@@ -1,45 +1,61 @@
-# [Project name]
+# Reelsy
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A full-featured social app — posts, stories, friends, direct messages, AI chat, and more — built for global launch.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/reelsy run dev` — frontend dev server (port 8080)
+- `pnpm --filter @workspace/api-server run dev` — API server (port 3000; build + start)
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+
+## Required Environment Variables
+
+**API Server** (`artifacts/api-server/.env`):
+- `MONGODB_URI` — MongoDB connection string
+- `MONGODB_DB` — database name (e.g. `reelsy`)
+- `SUPABASE_URL` — Supabase project URL
+- `SUPABASE_SERVICE_KEY` — Supabase service role key
+- `PORT` — server port (must be `3000` for the frontend proxy to work)
+
+**Frontend** (`artifacts/reelsy/.env`):
+- `VITE_SUPABASE_URL` — Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` — Supabase anon key
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- pnpm workspaces, Node.js 24, TypeScript 5.x
+- Frontend: React 18 + Vite + Tailwind CSS + Framer Motion
+- API: Express 5 + pino logging
+- DB: MongoDB (posts, users, friends, engagement) + Supabase (auth, realtime DMs)
+- AI: Pollinations API (free, no key required)
+- Build: esbuild (API), Vite (frontend)
+
+## Architecture
+
+- **Frontend proxy**: Vite proxies `/api/*` to `localhost:3000` — never hardcode backend URLs in app code.
+- **Auth**: Supabase JWT + MongoDB user profile stored in localStorage (`reelsy_user`).
+- **Posts**: Created in MongoDB. Local-only posts (no backend running) stored in `localStorage.reelsy_user_posts`, merged into feed on load.
+- **DMs**: Supabase Realtime `messages` + `conversations` tables; `useConversations` / `useMessages` hooks.
+- **Multi-account**: Extra accounts stored in `localStorage.reelsy_extra_accounts` (Pro feature).
+- **Help Center**: AI-powered via Pollinations; no API key needed.
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
-
-## Architecture decisions
-
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Frontend tabs: `artifacts/reelsy/src/components/tabs/`
+- API routes: `artifacts/api-server/src/routes/`
+- Shared hooks: `artifacts/reelsy/src/hooks/`
+- AppContext (user, tier, theme): `artifacts/reelsy/src/context/AppContext.tsx`
+- API typed client: `artifacts/reelsy/src/lib/api.ts`
+- Supabase helpers: `artifacts/api-server/src/lib/supabase.ts`
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Keep existing bot/SMS chat logic intact when adding real DM features.
+- Ad posts (ad-1 through ad-4) must remain in the feed; they use non-MongoDB IDs, so skip BSON validation for them.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- The "artifacts/api-server: API Server" workflow tries to bind port 8080 (conflicts with frontend). Always use the **"Start API server"** workflow (port 3000).
+- Ad post IDs (`ad-1`, `ad-2`, etc.) are not valid MongoDB ObjectIds — the engagement routes must guard against this.
+- `initSupabase()` is called at startup in `index.ts`; Supabase `fetch failed` errors are non-fatal (network-restricted env) — MongoDB routes still work.
+- When switching accounts via MultiAccountSheet, both `setUser` and `setTier` must be called in AppContext.

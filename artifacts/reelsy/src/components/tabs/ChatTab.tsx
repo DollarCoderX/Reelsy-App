@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback, Fragment } from "react";
+import { useState, useRef, useEffect, useCallback, Fragment, useMemo } from "react";
+import { useConversations } from "@/hooks/useMessages";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, Search, Edit3, X, Send, Mic, BadgeCheckIcon,
@@ -2189,6 +2190,9 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
   const { reelsyNumber, tier, t, ip } = useAppContext();
   const { requestFeatureIntro } = useFeatureIntro();
 
+  // ── Real DM conversations (Supabase-backed) ──
+  const { conversations: dmConversations } = useConversations();
+
   const [friendBotIds, setFriendBotIds] = useState<string[]>(readFriendBotIds);
 
   const buildInitialThreads = (): ChatThread[] => {
@@ -2916,6 +2920,51 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
             </AnimatePresence>
 
             <div className="flex-1 overflow-y-auto overscroll-none pb-24">
+              {/* ── Real People DMs ── */}
+              {dmConversations.length > 0 && !searchQuery && (
+                <div>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-4 pt-3 pb-1.5">Direct Messages</p>
+                  {dmConversations.map((conv, i) => {
+                    const otherUser = conv.otherUser;
+                    const otherName = otherUser?.display_name || otherUser?.username || conv.id;
+                    const avatarUrl = otherUser?.avatar_url
+                      || `https://api.dicebear.com/7.x/avataaars/svg?seed=${otherUser?.username || conv.id}&backgroundColor=b6e3f4`;
+                    const timeStr = conv.last_message_at
+                      ? new Date(conv.last_message_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      : "";
+                    return (
+                      <motion.button key={conv.id}
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                        whileTap={{ backgroundColor: "hsl(var(--secondary) / 0.5)" }}
+                        onClick={() => {}}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                        <div className="relative shrink-0">
+                          <div className="w-11 h-11 rounded-full overflow-hidden bg-secondary">
+                            <img src={avatarUrl} alt={otherName} className="w-full h-full object-cover" />
+                          </div>
+                          {conv.unreadCount > 0 && (
+                            <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-foreground flex items-center justify-center px-1">
+                              <span className="text-[10px] font-bold text-background">{conv.unreadCount}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="font-semibold text-[13px] truncate">{otherName}</span>
+                            <span className="text-[11px] text-muted-foreground shrink-0 ml-2">{timeStr}</span>
+                          </div>
+                          <p className="text-[12px] text-muted-foreground truncate">
+                            {conv.last_message_preview || "No messages yet"}
+                          </p>
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                  <div className="mx-4 mb-1 border-b border-secondary/40" />
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-4 pt-3 pb-1.5">Chats</p>
+                </div>
+              )}
+
               {filtered.map((thread, i) => {
                 const bot = thread.botId ? BOTS.find((b) => b.id === thread.botId) : null;
                 return (
