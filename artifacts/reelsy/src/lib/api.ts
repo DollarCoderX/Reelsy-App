@@ -291,6 +291,7 @@ export interface UserProfile {
   bio?: string;
   tier?: string;
   supabaseId?: string;
+  followersCount?: number;
   createdAt?: string;
 }
 

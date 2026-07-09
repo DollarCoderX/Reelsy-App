@@ -1254,11 +1254,14 @@ const PostCard = ({
                   <MessageCircle className="w-4 h-4" strokeWidth={1.7} />
                   <span className="text-[11px] font-medium">{counts.comments}</span>
                 </motion.button>
-                <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); handleReshare(); }}
-                  className="flex items-center gap-1 text-muted-foreground p-1">
-                  <Repeat2 className="w-4 h-4" strokeWidth={1.7} />
-                  <span className="text-[11px] font-medium">{counts.reshares}</span>
-                </motion.button>
+                {/* Prevent resharing own posts */}
+                {post.authorUsername !== user?.username && (
+                  <motion.button whileTap={{ scale: 0.8 }} onClick={(e) => { e.stopPropagation(); handleReshare(); }}
+                    className="flex items-center gap-1 text-muted-foreground p-1">
+                    <Repeat2 className="w-4 h-4" strokeWidth={1.7} />
+                    <span className="text-[11px] font-medium">{counts.reshares}</span>
+                  </motion.button>
+                )}
                 <motion.button whileTap={{ scale: 0.75 }} onClick={(e) => { e.stopPropagation(); toggleLike(); }}
                   className={`flex items-center gap-1 p-1 ${isLiked ? "text-rose-500" : "text-muted-foreground"}`}>
                   <motion.div animate={isLiked ? { scale: [1, 1.45, 1] } : {}} transition={{ type: "spring", stiffness: 500, damping: 20 }}>

@@ -3277,7 +3277,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                           <img src={msg.mediaUrl} className="w-full h-full object-contain" alt="sticker" />
                         </motion.div>
                         <div className={`flex items-center gap-1.5 mt-0.5 ${msg.isMine ? "flex-row-reverse" : ""}`}>
-                          {msg.reaction && <span className="text-[14px] -mt-0.5">{msg.reaction}</span>}
+                          {msg.reaction && <LottieEmoji emoji={msg.reaction} size={20} loop={true} className="-mt-0.5" />}
                           <span className="text-[10px] text-muted-foreground">{msg.time}</span>
                           {msg.isMine && (
                             <span className="text-muted-foreground">
@@ -3546,7 +3546,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                     </motion.div>
 
                     <div className={`flex items-center gap-1.5 mt-0.5 ${msg.isMine ? "flex-row-reverse" : ""}`}>
-                      {msg.reaction && <span className="text-[14px] -mt-0.5">{msg.reaction}</span>}
+                      {msg.reaction && <LottieEmoji emoji={msg.reaction} size={20} loop={true} className="-mt-0.5" />}
                       <span className="text-[10px] text-muted-foreground">{msg.time}</span>
                       {msg.isMine && (
                         <span className="text-muted-foreground">
@@ -4179,8 +4179,8 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
               <div className="flex items-center justify-around px-4 py-3 border-b border-secondary/40">
                 {QUICK_REACTIONS.map((emoji) => (
                   <motion.button key={emoji} whileTap={{ scale: 0.7 }} onClick={() => addReaction(contextMsg.id, emoji)}
-                    className={`text-[24px] ${contextMsg.reaction === emoji ? "opacity-100 scale-125" : "opacity-80"}`}>
-                    {emoji}
+                    className={`flex items-center justify-center transition-transform ${contextMsg.reaction === emoji ? "scale-125" : "opacity-80"}`}>
+                    <LottieEmoji emoji={emoji} size={30} loop={true} />
                   </motion.button>
                 ))}
               </div>

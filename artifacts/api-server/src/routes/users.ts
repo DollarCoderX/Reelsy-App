@@ -27,7 +27,18 @@ router.get('/users/search', async (req, res) => {
       .project({ emailPassword: 0, strikes: 0 })
       .toArray();
 
-    return res.json({ users });
+    // Attach follower counts from the friends collection (bidirectional friend model)
+    const friendsCollection = await import('../lib/mongodb').then(m => m.getMongoDBCollection('friends'));
+    const usernames = users.map((u: any) => u.username);
+    const friendCounts = await friendsCollection.aggregate([
+      { $match: { friendUsername: { $in: usernames } } },
+      { $group: { _id: '$friendUsername', count: { $sum: 1 } } },
+    ]).toArray();
+    const countMap: Record<string, number> = {};
+    for (const row of friendCounts) countMap[row._id] = row.count;
+    const usersWithCount = users.map((u: any) => ({ ...u, followersCount: countMap[u.username] || 0 }));
+
+    return res.json({ users: usersWithCount });
   } catch (error) {
     console.error('Error searching users:', error);
     return res.status(500).json({ error: 'Failed to search users' });

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Search as SearchIcon, Grid, List, X, Building2, Clock, Users, Loader2, Globe2, ShieldAlert, Home, UserPlus, UserCheck, UserX, Check } from "lucide-react";
+import { Search as SearchIcon, Grid, List, X, Building2, Clock, Users, Loader2, Globe2, ShieldAlert, Home, UserPlus, UserCheck, Check, ShieldOff } from "lucide-react";
 import reelsyLogo from "@assets/j.png";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -39,9 +39,15 @@ const ADULT_TERMS = ["sex", "porn", "porno", "nude", "nudes", "xxx", "nsfw", "er
 
 type BotFriendStatus = "none" | "requested" | "friends";
 
+function formatFollowers(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return String(n);
+}
+
 const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => void; onGoHome?: () => void }) => {
   const { user } = useAppContext();
-  const { sendRequest, statusCache, loading: friendLoading, acceptRequest, declineRequest } = useFriends();
+  const { sendRequest, statusCache, loading: friendLoading, acceptRequest, declineRequest, getStatus } = useFriends();
   const { isOnline } = useOnlinePresence(user?.username || undefined);
 
   const [query, setQuery] = useState("");
@@ -54,6 +60,7 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
   const [adultAllowedQuery, setAdultAllowedQuery] = useState("");
   const [realUsers, setRealUsers] = useState<UserProfile[]>([]);
   const [realUsersLoading, setRealUsersLoading] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Bot friend status (local, for bots only)
@@ -68,6 +75,16 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
   const normalizedQuery = query.trim().toLowerCase();
   const isAdultQuery = ADULT_TERMS.some((term) => new RegExp(`\\b${term}\\b`, "i").test(normalizedQuery));
   const adultBlocked = normalizedQuery.length > 0 && isAdultQuery && adultAllowedQuery !== normalizedQuery;
+
+  // Preload friend status for all real users when search results change
+  useEffect(() => {
+    if (!realUsers.length || !user?.username) return;
+    realUsers.forEach((u) => {
+      if (u.username !== user.username && !statusCache[u.username]) {
+        getStatus(u.username).catch(() => {});
+      }
+    });
+  }, [realUsers, user?.username]);
 
   // Search real users with debounce
   useEffect(() => {
@@ -118,24 +135,46 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
   };
 
   const handleRealFriendAction = useCallback(async (targetUser: UserProfile) => {
+    // Prevent self-actions
+    if (targetUser.username === user?.username) return;
     const state = statusCache[targetUser.username];
     const status = state?.status || "none";
     if (status === "none") {
       await sendRequest(targetUser.username);
     } else if (status === "request_sent" && state?.requestId) {
-      // cancel
       await declineRequest(state.requestId, targetUser.username);
     } else if (status === "request_received" && state?.requestId) {
       await acceptRequest(state.requestId, targetUser.username);
     }
-  }, [statusCache, sendRequest, declineRequest, acceptRequest]);
+    // "friends" → could unfriend, but keep simple for now
+  }, [statusCache, sendRequest, declineRequest, acceptRequest, user?.username]);
 
-  const getFriendButtonLabel = (username: string) => {
+  const handleBlock = useCallback(async (targetUsername: string) => {
+    if (!user?.username || targetUsername === user.username) return;
+    try {
+      await api.blocks.block(user.username, targetUsername);
+      setBlockedUsers((prev) => new Set([...prev, targetUsername]));
+    } catch {}
+  }, [user?.username]);
+
+  const handleUnblock = useCallback(async (targetUsername: string) => {
+    if (!user?.username) return;
+    try {
+      await api.blocks.unblock(user.username, targetUsername);
+      setBlockedUsers((prev) => { const s = new Set(prev); s.delete(targetUsername); return s; });
+    } catch {}
+  }, [user?.username]);
+
+  // Button label/style — Follow model language
+  const getFollowButtonInfo = (username: string) => {
+    if (blockedUsers.has(username)) {
+      return { icon: <ShieldOff className="w-3 h-3" />, label: "Blocked", style: "bg-secondary/60 text-muted-foreground border border-secondary" };
+    }
     const status = statusCache[username]?.status || "none";
-    if (status === "friends") return { icon: <Users className="w-3 h-3" />, label: "Friends", style: "bg-secondary text-foreground" };
-    if (status === "request_sent") return { icon: <Clock className="w-3 h-3" />, label: "Sent", style: "bg-secondary text-muted-foreground" };
-    if (status === "request_received") return { icon: <Check className="w-3 h-3" />, label: "Accept", style: "bg-green-600 text-white" };
-    return { icon: <UserPlus className="w-3 h-3" />, label: "Add", style: "bg-foreground text-background" };
+    if (status === "friends") return { icon: <UserCheck className="w-3 h-3" />, label: "Following", style: "bg-secondary text-foreground border border-secondary" };
+    if (status === "request_sent") return { icon: <Clock className="w-3 h-3" />, label: "Requested", style: "bg-secondary text-muted-foreground border border-secondary" };
+    if (status === "request_received") return { icon: <Check className="w-3 h-3" />, label: "Accept", style: "bg-green-600 text-white border border-green-600" };
+    return { icon: <UserPlus className="w-3 h-3" />, label: "Follow", style: "bg-foreground text-background border border-foreground" };
   };
 
   const matchingAutoBots = normalizedQuery
@@ -146,18 +185,19 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
-      {/* Search bar */}
-      <div className="shrink-0 px-4 pt-4 pb-2">
+      {/* Header */}
+      <div className="shrink-0 px-4 pt-5 pb-2">
+        <h1 className="text-[22px] font-black mb-3 tracking-tight">Search</h1>
         <div className="relative flex items-center">
-          <SearchIcon className="absolute left-3.5 w-3.5 h-3.5 text-muted-foreground" strokeWidth={2} />
+          <SearchIcon className="absolute left-3.5 w-4 h-4 text-muted-foreground" strokeWidth={2} />
           <input
-            placeholder="Search by username or email..."
+            placeholder="Search..."
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
             style={{ fontSize: 16 }}
-            className="w-full pl-10 pr-10 py-2.5 bg-secondary rounded-xl font-medium outline-none"
+            className="w-full pl-10 pr-10 py-2.5 bg-secondary/80 rounded-2xl font-medium outline-none text-[14px]"
           />
           {query && (
             <button onClick={() => { setQuery(""); setCompanyResult(null); setAdultAllowedQuery(""); setRealUsers([]); }} className="absolute right-3">
@@ -172,7 +212,7 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
         {CATEGORIES.map((cat) => (
           <motion.button key={cat} whileTap={{ scale: 0.93 }} onClick={() => setCategory(cat)}
             className={`shrink-0 px-3.5 py-1 rounded-full text-[12px] font-semibold transition-all ${
-              category === cat ? "bg-foreground text-background" : "bg-secondary text-muted-foreground"
+              category === cat ? "bg-foreground text-background" : "bg-secondary/60 text-muted-foreground"
             }`}>{cat}</motion.button>
         ))}
       </div>
@@ -182,10 +222,10 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
         <AnimatePresence>
           {focused && recents.length > 0 && !query && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mb-4 mt-1">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Recent</p>
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2.5">Recent</p>
               <div className="flex flex-wrap gap-2">
                 {recents.map((r) => (
-                  <div key={r} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-secondary">
+                  <div key={r} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-secondary/60 border border-secondary">
                     <button onClick={() => { setQuery(r); setFocused(false); handleSearch(r); }} className="text-[12px] font-medium">{r}</button>
                     <button onClick={() => removeRecent(r)}><X className="w-3 h-3 text-muted-foreground ml-0.5" /></button>
                   </div>
@@ -220,7 +260,7 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
             </motion.div>
           ) : normalizedQuery ? (
             <motion.div key="searching-state" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="mt-2 mb-3 rounded-2xl bg-secondary/60 p-3">
+              className="mt-2 mb-3 rounded-2xl bg-secondary/40 p-3">
               <div className="flex items-center gap-2 mb-1">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-background">
                   {isSearching || realUsersLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe2 className="h-3.5 w-3.5" />}
@@ -233,45 +273,87 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
           ) : null}
         </AnimatePresence>
 
-        {/* Real user results */}
+        {/* ── Real user results (Instagram-style) ── */}
         <AnimatePresence>
           {!adultBlocked && !isSearching && !realUsersLoading && realUsers.length > 0 && (category === "All" || category === "People") && (
             <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">People on Reelsy</p>
-              <div className="space-y-2">
-                {realUsers.map((u) => {
-                  const btnInfo = getFriendButtonLabel(u.username);
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">People</p>
+              <div className="divide-y divide-secondary/40">
+                {realUsers.map((u, idx) => {
+                  const btnInfo = getFollowButtonInfo(u.username);
                   const isLoading = friendLoading[u.username];
+                  const isBlocked = blockedUsers.has(u.username);
+                  const online = isOnline(u.username);
                   return (
-                    <motion.div key={u._id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center gap-2.5 rounded-2xl bg-secondary/60 p-3">
+                    <motion.div
+                      key={u._id || u.username}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      className="flex items-center gap-3 py-3"
+                    >
+                      {/* Avatar */}
                       <div className="relative shrink-0">
-                      <div
-                        className="h-11 w-11 rounded-full bg-secondary overflow-hidden flex items-center justify-center text-[15px] font-bold"
-                        style={{
-                          backgroundImage: u.profileImage ? `url(${u.profileImage})` : undefined,
-                          backgroundSize: "cover", backgroundPosition: "center",
-                        }}
-                      >
-                        {!u.profileImage && (u.displayName?.[0] || u.username?.[0] || "?")}
+                        <div
+                          className="h-[52px] w-[52px] rounded-full bg-secondary overflow-hidden flex items-center justify-center text-[18px] font-bold"
+                          style={{
+                            backgroundImage: u.profileImage ? `url(${u.profileImage})` : undefined,
+                            backgroundSize: "cover",
+                            backgroundPosition: "center",
+                          }}
+                        >
+                          {!u.profileImage && (u.displayName?.[0] || u.username?.[0] || "?")}
+                        </div>
+                        {online && (
+                          <span className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
+                        )}
                       </div>
-                      {isOnline(u.username) && (
-                        <span className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-background" />
-                      )}
-                      </div>
+
+                      {/* Info */}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-bold">{u.displayName || u.username}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">@{u.username}</p>
+                        <p className="truncate text-[14px] font-bold leading-tight">{u.username}</p>
+                        <p className="truncate text-[12px] text-muted-foreground leading-tight mt-0.5">
+                          {u.displayName && u.displayName !== u.username ? u.displayName : u.bio || "Reelsy user"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {formatFollowers(u.followersCount ?? 0)} followers
+                        </p>
                       </div>
-                      <motion.button
-                        whileTap={{ scale: 0.92 }}
-                        onClick={() => handleRealFriendAction(u)}
-                        disabled={isLoading || btnInfo.label === "Friends"}
-                        className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all disabled:opacity-70 ${btnInfo.style}`}
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : btnInfo.icon}
-                        {btnInfo.label}
-                      </motion.button>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {!isBlocked ? (
+                          <motion.button
+                            whileTap={{ scale: 0.92 }}
+                            onClick={() => handleRealFriendAction(u)}
+                            disabled={isLoading}
+                            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-semibold transition-all disabled:opacity-70 ${btnInfo.style}`}
+                          >
+                            {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : btnInfo.icon}
+                            {btnInfo.label}
+                          </motion.button>
+                        ) : (
+                          <motion.button
+                            whileTap={{ scale: 0.92 }}
+                            onClick={() => handleUnblock(u.username)}
+                            className="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-semibold bg-secondary/60 text-muted-foreground border border-secondary"
+                          >
+                            <ShieldOff className="w-3 h-3" />
+                            Unblock
+                          </motion.button>
+                        )}
+                        {/* Block option (3-dot or long-press could trigger this, for now a discreet block button) */}
+                        {!isBlocked && (
+                          <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleBlock(u.username)}
+                            className="w-7 h-7 flex items-center justify-center rounded-full text-muted-foreground hover:bg-secondary/60 transition-colors"
+                            title="Block user"
+                          >
+                            <ShieldOff className="w-3.5 h-3.5" />
+                          </motion.button>
+                        )}
+                      </div>
                     </motion.div>
                   );
                 })}
@@ -282,31 +364,38 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
 
         {/* Bot results in search */}
         {!adultBlocked && !isSearching && matchingAutoBots.length > 0 && (category === "All" || category === "People") && (
-          <div className="mb-4 space-y-2">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Suggested</p>
-            {matchingAutoBots.map((person) => {
-              const status = botFriendStatus[person.handle] || "none";
-              return (
-                <motion.div key={person.handle} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2.5 rounded-2xl bg-secondary/60 p-3">
-                  <img src={person.avatarUrl} alt={person.name} className="h-11 w-11 rounded-full bg-secondary object-cover" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-bold">{person.name}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{person.handle} · {person.role}</p>
-                  </div>
-                  <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleBotFriendCycle(person)}
-                    className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all ${
-                      status === "friends" ? "bg-secondary text-foreground" : "bg-foreground text-background"
-                    }`}>
-                    {status === "friends" ? <><Users className="h-3 w-3" /> Friends</> : <><UserPlus className="h-3 w-3" /> Add</>}
-                  </motion.button>
-                  {status === "friends" && (
-                    <motion.button whileTap={{ scale: 0.92 }} onClick={() => onOpenThread?.(person.botId)}
-                      className="shrink-0 rounded-full bg-foreground px-3 py-1.5 text-[11px] font-semibold text-background">Chat</motion.button>
-                  )}
-                </motion.div>
-              );
-            })}
+          <div className="mb-4">
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Suggested</p>
+            <div className="divide-y divide-secondary/40">
+              {matchingAutoBots.map((person) => {
+                const status = botFriendStatus[person.handle] || "none";
+                return (
+                  <motion.div key={person.handle} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 py-3">
+                    <img src={person.avatarUrl} alt={person.name} className="h-[52px] w-[52px] rounded-full bg-secondary object-cover shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14px] font-bold">{person.handle.replace("@", "")}</p>
+                      <p className="truncate text-[12px] text-muted-foreground">{person.name} · {person.role}</p>
+                      <p className="text-[11px] text-muted-foreground">auto-accepts</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleBotFriendCycle(person)}
+                        className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-semibold border transition-all ${
+                          status === "friends"
+                            ? "bg-secondary text-foreground border-secondary"
+                            : "bg-foreground text-background border-foreground"
+                        }`}>
+                        {status === "friends" ? <><UserCheck className="h-3 w-3" /> Following</> : <><UserPlus className="h-3 w-3" /> Follow</>}
+                      </motion.button>
+                      {status === "friends" && (
+                        <motion.button whileTap={{ scale: 0.92 }} onClick={() => onOpenThread?.(person.botId)}
+                          className="shrink-0 rounded-full bg-secondary border border-secondary px-3 py-1.5 text-[12px] font-semibold">Message</motion.button>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -357,7 +446,7 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
         {!normalizedQuery && (category === "All" || category === "Posts" || category === "Tags") && (
           <>
             <div className="flex items-center justify-between mt-2 mb-3">
-              <p className="font-semibold text-[13px]">Trending</p>
+              <p className="font-bold text-[14px]">Trending</p>
               <div className="flex gap-1">
                 <motion.button whileTap={{ scale: 0.9 }} onClick={() => setGridMode(false)}
                   className={`w-7 h-7 rounded-lg flex items-center justify-center ${!gridMode ? "bg-foreground text-background" : "bg-secondary text-muted-foreground"}`}>
@@ -385,7 +474,7 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
                 ))}
               </div>
             ) : (
-              <div className="mb-6">
+              <div className="mb-6 divide-y divide-secondary/30">
                 {TRENDING.map((t, i) => (
                   <motion.button key={t.topic} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03 }} whileTap={{ scale: 0.98 }}
@@ -393,9 +482,9 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
                     <div className="w-10 h-10 rounded-xl bg-secondary overflow-hidden shrink-0">
                       <img src={t.img} alt={t.topic} className="w-full h-full object-cover" />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-[10px] text-muted-foreground mb-0.5">{i + 1} · {t.category}</p>
-                      <p className="font-semibold text-[13px]">{t.topic}</p>
+                      <p className="font-bold text-[13px] truncate">{t.topic}</p>
                       <p className="text-[11px] text-muted-foreground">{t.posts} posts</p>
                     </div>
                   </motion.button>
@@ -407,33 +496,36 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
 
         {/* People you may know */}
         {!normalizedQuery && (category === "All" || category === "People") && (
-          <div>
-            <p className="font-semibold text-[13px] mb-3">People you may know</p>
-            <div className="space-y-3">
+          <div className="mb-6">
+            <p className="font-bold text-[14px] mb-3">People you may know</p>
+            <div className="divide-y divide-secondary/30">
               {AUTONOMOUS_BOT_PEOPLE.map((p) => {
                 const status = botFriendStatus[p.handle] || "none";
                 return (
                   <motion.div key={p.handle} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2.5">
-                    <img src={p.avatarUrl} alt={p.name} className="w-10 h-10 rounded-full bg-secondary object-cover" />
+                    className="flex items-center gap-3 py-3">
+                    <img src={p.avatarUrl} alt={p.name} className="w-[52px] h-[52px] rounded-full bg-secondary object-cover shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-[13px] truncate">{p.name}</p>
-                      <p className="text-muted-foreground text-[11px] truncate">{p.handle} · auto-accepts</p>
+                      <p className="font-bold text-[14px] truncate">{p.handle.replace("@", "")}</p>
+                      <p className="text-muted-foreground text-[12px] truncate">{p.name}</p>
+                      <p className="text-muted-foreground text-[11px]">Suggested · auto-accepts</p>
                     </div>
-                    <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleBotFriendCycle(p)}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all shrink-0 ${
-                        status === "none" ? "bg-foreground text-background"
-                        : status === "requested" ? "bg-secondary text-muted-foreground"
-                        : "bg-secondary text-foreground"
-                      }`}>
-                      {status === "none" && <><UserPlus className="w-3 h-3" /> Add</>}
-                      {status === "requested" && <><Clock className="w-3 h-3" /> Sent</>}
-                      {status === "friends" && <><Users className="w-3 h-3" /> Friends</>}
-                    </motion.button>
-                    {status === "friends" && (
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => onOpenThread?.(p.botId)}
-                        className="shrink-0 rounded-full bg-foreground px-2.5 py-1.5 text-[11px] font-semibold text-background">Chat</motion.button>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleBotFriendCycle(p)}
+                        className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-semibold border transition-all ${
+                          status === "none" ? "bg-foreground text-background border-foreground"
+                          : status === "requested" ? "bg-secondary text-muted-foreground border-secondary"
+                          : "bg-secondary text-foreground border-secondary"
+                        }`}>
+                        {status === "none" && <><UserPlus className="w-3 h-3" /> Follow</>}
+                        {status === "requested" && <><Clock className="w-3 h-3" /> Requested</>}
+                        {status === "friends" && <><UserCheck className="w-3 h-3" /> Following</>}
+                      </motion.button>
+                      {status === "friends" && (
+                        <motion.button whileTap={{ scale: 0.92 }} onClick={() => onOpenThread?.(p.botId)}
+                          className="shrink-0 rounded-full bg-secondary border border-secondary px-3 py-1.5 text-[12px] font-semibold">Message</motion.button>
+                      )}
+                    </div>
                   </motion.div>
                 );
               })}
