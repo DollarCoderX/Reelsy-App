@@ -1,0 +1,52 @@
+🏗️ Reelsy Feature Engineering Plan
+What exists (won't break)
+MongoDB: posts, comments, engagement, notifications, follows, users collections
+Bot chat system (bots.ts + ChatTab) — keeping intact, adding real users alongside
+LottieEmoji component already built — needs wiring everywhere
+Engagement routes (like/comment/reshare/save) — solid, keeping
+Supabase client on frontend (supabase-client.ts)
+Backend: 3 new route files
+/api/friends — Friend request system (MongoDB friend_requests collection)
+
+POST /request — send request, auto-creates notification
+PUT /request/:id/accept — accept, creates friend_accepted notification
+PUT /request/:id/decline — decline/cancel
+GET /requests/incoming?userId= — requests waiting for me
+GET /requests/outgoing?userId= — my pending requests
+GET /status?fromUsername=&toUsername= — relationship status check
+GET /:username — get friends list
+DELETE /:friendUsername?username= — unfriend
+/api/messages — Supabase Postgres + Realtime DMs
+
+Supabase tables: conversations + conversation_participants + messages
+POST /conversations — get-or-create DM thread
+GET /conversations?userId= — list all threads with last message
+POST /conversations/:id/send — store message in Supabase
+GET /conversations/:id/messages?limit=&before= — cursor paged history
+PUT /conversations/:id/read — mark read (for unread badges)
+Frontend subscribes directly to Supabase Realtime channel per conversation
+User search update — add userEmail exact-match to existing /api/users/search Notifications update — add friend_request + friend_accepted types, PUT /notifications/read-all
+
+Frontend: new files + updated tabs
+New:
+
+src/lib/api.ts — single typed fetch client (all backend calls in one place)
+src/context/NotificationContext.tsx — global unread counts, Supabase broadcast subscription for real-time friend request toasts
+src/hooks/useFriends.ts — send/accept/cancel/status
+src/hooks/useMessages.ts — Supabase Realtime per-conversation subscription
+src/components/EmojiText.tsx — parse any string and render each emoji character as <LottieEmoji> inline (used everywhere)
+Updated tabs:
+
+HomeTab — real MongoDB feed + cursor pagination, emoji reactions (🔥❤️😂😮😢 not just ❤️) with Lottie, comments with EmojiText, Lottie in all interactive actions
+SearchTab — real user search by username OR email hitting /api/users/search, friend request buttons wired to real API, shows real users above bots, online presence dots
+ActivityTab — real notifications (like/comment/friend_request/friend_accepted) from MongoDB, accept/decline friend request inline, EmojiText for notification previews
+ChatTab — retains full bot chat, adds "Real DMs" section with Supabase Realtime; EmojiText renders all message content; AnimatedEmojiPicker always visible on compose
+MainApp — notification badge counts on nav icons (red dots), online presence via Supabase presence channel
+Mass features included
+🟢 Online presence — Supabase Realtime presence channel, green dot on avatars
+🎭 Emoji reactions on posts — multi-emoji (not just like), each animated via Lottie
+💬 Comment emoji parsing — every emoji in any comment/message renders as Lottie animation
+🔔 In-app toast notifications — friend request pops up instantly via Supabase broadcast
+📬 Unread badge counts — on chat and notification nav tabs
+👤 User profile sheet — tap any user to see their posts + mutual friends + add/message
+🔁 Cursor-based infinite scroll on feed
