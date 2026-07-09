@@ -1,0 +1,3 @@
+- [API server startup](api-server-startup.md) — takes 50-60s to build+start; WorkflowsRestart tool always times out but server IS running; verify with `curl localhost:3000/api/healthz`
+- [Feed pagination pattern](feed-pagination.md) — cursor uses `_id` for both sort and filter to avoid ordering mismatch; sort by `_id: -1`, cursor filter `_id < ObjectId(before)`
+- [Supabase realtime DMs](supabase-realtime.md) — useMessages hook has full realtime subscription wired; useConversations also has Postgres CDC subscription

@@ -9,6 +9,7 @@ import { api, UserProfile } from "@/lib/api";
 import { useFriends } from "@/hooks/useFriends";
 import { useAppContext } from "@/context/AppContext";
 import { LottieEmoji } from "@/components/LottieEmoji";
+import { useOnlinePresence } from "@/hooks/useOnlinePresence";
 
 const CATEGORIES = ["All", "People", "Posts", "Companies", "Tags"];
 
@@ -41,6 +42,7 @@ type BotFriendStatus = "none" | "requested" | "friends";
 const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => void; onGoHome?: () => void }) => {
   const { user } = useAppContext();
   const { sendRequest, statusCache, loading: friendLoading, acceptRequest, declineRequest } = useFriends();
+  const { isOnline } = useOnlinePresence(user?.username || undefined);
 
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
@@ -243,14 +245,19 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
                   return (
                     <motion.div key={u._id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                       className="flex items-center gap-2.5 rounded-2xl bg-secondary/60 p-3">
+                      <div className="relative shrink-0">
                       <div
-                        className="h-11 w-11 rounded-full bg-secondary overflow-hidden flex items-center justify-center text-[15px] font-bold shrink-0"
+                        className="h-11 w-11 rounded-full bg-secondary overflow-hidden flex items-center justify-center text-[15px] font-bold"
                         style={{
                           backgroundImage: u.profileImage ? `url(${u.profileImage})` : undefined,
                           backgroundSize: "cover", backgroundPosition: "center",
                         }}
                       >
                         {!u.profileImage && (u.displayName?.[0] || u.username?.[0] || "?")}
+                      </div>
+                      {isOnline(u.username) && (
+                        <span className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-background" />
+                      )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-bold">{u.displayName || u.username}</p>

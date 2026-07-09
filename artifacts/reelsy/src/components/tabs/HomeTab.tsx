@@ -5,7 +5,7 @@ import {
   Bell, Heart, MessageCircle, Repeat2, Bookmark, Plus,
   MoreHorizontal, TrendingUp, Eye, X, Send, Share2, Hash, AtSign, Check, SmileIcon,
   Flag, UserMinus, UserCheck, Link, EyeOff, ChevronLeft, ChevronRight, Video, Play, Pause, Music,
-  BarChart3, ExternalLink, Globe2, MapPin
+  BarChart3, ExternalLink, Globe2, MapPin, VolumeX, ShieldOff, Loader2
 } from "lucide-react";
 import reelsyLogo from "@assets/db1645cc1ed95625a5dff41ee9a0f164_1778235733181.jpg";
 import UserProfile from "@/components/UserProfile";
@@ -15,10 +15,13 @@ import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import MediaViewer from "@/components/ui/MediaViewer";
 import { useEngagement } from "@/hooks/useEngagement";
 import { LottieEmoji } from "@/components/LottieEmoji";
+import { EmojiText } from "@/components/EmojiText";
+import { api } from "@/lib/api";
 
 interface HomeTabProps { onNavVisible?: (v: boolean) => void; }
 
-const STORIES: { id: string; name: string; avatarUrl: string; unread: boolean }[] = [];
+// Stories are loaded dynamically from the API — see HomeTab state
+type StoryItem = { id: string; name: string; avatarUrl: string; unread: boolean; authorUsername: string };
 const TAGS = ["#design", "#afrobeats", "#fyp", "#Lagos", "#AI", "#minimalism", "#creativity", "#startup", "#music", "#fashion", "#film", "#wellness", "#tech", "#culture", "#broadcast", "#reelsy", "#photography", "#travel", "#nature", "#fitness", "#food", "#art", "#lifestyle", "#coding", "#vlog", "#entertainment", "#business", "#growth", "#vibes", "#news"];
 
 const formatCount = (n: number) => n >= 1000000 ? `${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
@@ -37,6 +40,10 @@ interface PostData {
   time: string;
   isUserPost?: boolean;
   userAvatar?: string;
+  // Real author fields from MongoDB
+  authorName?: string;
+  authorHandle?: string;
+  authorAvatar?: string;
   music?: { title: string; artist: string; url: string };
   location?: { lat: number; lng: number; name: string };
   aiGenerated?: boolean;
@@ -108,28 +115,54 @@ interface CommentData {
 const CommentSheet = ({ post, onClose }: { post: PostData; onClose: () => void }) => {
   const { user } = useAppContext();
   const [commentText, setCommentText] = useState("");
-  
   const [comments, setComments] = useState<CommentData[]>([]);
-
+  const [loadingComments, setLoadingComments] = useState(false);
   const [replyingTo, setReplyingTo] = useState<CommentData | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Fetch real comments from backend on mount
+  useEffect(() => {
+    if (!post.id || post.id.startsWith("ad-")) return;
+    setLoadingComments(true);
+    api.posts.getComments(post.id).then(({ comments: apiComments }) => {
+      // Build flat list first
+      const flat: CommentData[] = apiComments.map((c: any) => ({
+        id: c._id,
+        name: c.authorDisplayName || c.authorUsername || "User",
+        handle: `@${c.authorUsername || "user"}`,
+        text: c.content || "",
+        time: c.createdAt ? new Date(c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "recently",
+        avatar: c.authorAvatar || undefined,
+        likes: Array.isArray(c.likes) ? c.likes.length : 0,
+        liked: Array.isArray(c.likes) && user?.username ? c.likes.includes(user.username) : false,
+        replies: [] as CommentData[],
+        replyTo: c.replyTo,
+      }));
+      // Reconstruct reply threads: attach replies to their parent
+      const byId = new Map(flat.map((c) => [c.id, c]));
+      const roots: CommentData[] = [];
+      for (const c of flat) {
+        if (c.replyTo && byId.has(c.replyTo)) {
+          const parent = byId.get(c.replyTo)!;
+          if (!parent.replies) parent.replies = [];
+          parent.replies.push(c);
+        } else {
+          roots.push(c);
+        }
+      }
+      setComments(roots);
+    }).catch(() => {}).finally(() => setLoadingComments(false));
+  }, [post.id]);
 
   const handleLikeComment = (commentId: string) => {
     setComments((prevComments) => {
       const updateList = (list: CommentData[]): CommentData[] => {
         return list.map((c) => {
           if (c.id === commentId) {
-            return {
-              ...c,
-              liked: !c.liked,
-              likes: c.liked ? c.likes - 1 : c.likes + 1
-            };
+            return { ...c, liked: !c.liked, likes: c.liked ? c.likes - 1 : c.likes + 1 };
           }
           if (c.replies && c.replies.length > 0) {
-            return {
-              ...c,
-              replies: updateList(c.replies)
-            };
+            return { ...c, replies: updateList(c.replies) };
           }
           return c;
         });
@@ -138,7 +171,7 @@ const CommentSheet = ({ post, onClose }: { post: PostData; onClose: () => void }
     });
   };
 
-  const sendComment = (textToSend?: string) => {
+  const sendComment = async (textToSend?: string) => {
     const text = (textToSend || commentText).trim();
     if (!text) return;
 
@@ -151,21 +184,29 @@ const CommentSheet = ({ post, onClose }: { post: PostData; onClose: () => void }
       avatar: user?.avatar || undefined,
       likes: 0,
       liked: false,
-      replies: []
+      replies: [],
+      replyTo: replyingTo?.id,
     };
 
+    // Persist to backend (non-blocking)
+    if (user?.username && !post.id.startsWith("ad-")) {
+      api.posts.addComment(post.id, {
+        authorUsername: user.username,
+        authorDisplayName: user.nickname || user.username,
+        authorAvatar: user.avatar || undefined,
+        content: text,
+        replyTo: replyingTo?.id,
+      }).catch(() => {});
+    }
+
     if (replyingTo) {
-      setComments((prevComments) => {
-        return prevComments.map((c) => {
-          if (c.id === replyingTo.id) {
-            return {
-              ...c,
-              replies: [...(c.replies || []), newComment]
-            };
-          }
-          return c;
-        });
-      });
+      setComments((prevComments) =>
+        prevComments.map((c) =>
+          c.id === replyingTo.id
+            ? { ...c, replies: [...(c.replies || []), newComment] }
+            : c
+        )
+      );
       setReplyingTo(null);
     } else {
       setComments((prev) => [...prev, newComment]);
@@ -205,7 +246,15 @@ const CommentSheet = ({ post, onClose }: { post: PostData; onClose: () => void }
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-none px-4 py-2 space-y-1">
-          {comments.map((c) => (
+          {loadingComments && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground/50" />
+            </div>
+          )}
+          {!loadingComments && comments.length === 0 && (
+            <p className="text-center text-[12px] text-muted-foreground py-8">No comments yet. Be the first!</p>
+          )}
+          {!loadingComments && comments.map((c) => (
             <div key={c.id} className="py-2.5">
               <div className="flex gap-3">
                 {c.avatar ? (
@@ -225,7 +274,7 @@ const CommentSheet = ({ post, onClose }: { post: PostData; onClose: () => void }
                     <span className="text-muted-foreground text-[10px]">{c.handle}</span>
                     <span className="text-muted-foreground text-[10px]">· {c.time}</span>
                   </div>
-                  <p className="text-[13px] leading-relaxed text-foreground">{c.text}</p>
+                  <EmojiText text={c.text} emojiSize={16} className="text-[13px] leading-relaxed text-foreground" />
                   
                   <div className="flex items-center gap-4 mt-2">
                     <button onClick={() => setReplyingTo(c)} className="text-[10px] text-muted-foreground font-semibold hover:text-foreground transition-colors">Reply</button>
@@ -258,7 +307,7 @@ const CommentSheet = ({ post, onClose }: { post: PostData; onClose: () => void }
                           <span className="text-muted-foreground text-[9px]">{reply.handle}</span>
                           <span className="text-muted-foreground text-[9px]">· {reply.time}</span>
                         </div>
-                        <p className="text-[12px] leading-relaxed text-foreground">{reply.text}</p>
+                        <EmojiText text={reply.text} emojiSize={14} className="text-[12px] leading-relaxed text-foreground" />
                         
                         <div className="flex items-center gap-4 mt-1.5">
                           <button onClick={() => handleLikeComment(reply.id)} className={`flex items-center gap-1 transition-colors ${reply.liked ? "text-rose-500 font-semibold" : "text-muted-foreground hover:text-foreground"}`}>
@@ -901,6 +950,31 @@ const PostCard = ({
                       },
                     },
                     {
+                      icon: VolumeX,
+                      label: `Mute ${displayName}`,
+                      action: () => {
+                        const handle = post.authorHandle?.replace("@", "") || post.authorName || "";
+                        if (user?.username && handle) {
+                          api.blocks.mute(user.username, handle).catch(() => {});
+                        }
+                        setShowOptions(false);
+                        showToast(`Muted ${displayName}`);
+                      },
+                    },
+                    {
+                      icon: ShieldOff,
+                      label: `Block ${displayName}`,
+                      danger: true,
+                      action: () => {
+                        const handle = post.authorHandle?.replace("@", "") || post.authorName || "";
+                        if (user?.username && handle) {
+                          api.blocks.block(user.username, handle).catch(() => {});
+                        }
+                        setShowOptions(false);
+                        showToast(`Blocked ${displayName}`);
+                      },
+                    },
+                    {
                       icon: Link, label: "Copy link",
                       action: () => {
                         navigator.clipboard?.writeText(`https://reelsy.app/post/${post.id}`).catch(() => { });
@@ -1219,6 +1293,23 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
   const [feedType, setFeedType] = useState<"foryou" | "following">("foryou");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [newPostsPill, setNewPostsPill] = useState(false);
+
+  // ---- Live Stories from API ----
+  const [apiStories, setApiStories] = useState<StoryItem[]>([]);
+  useEffect(() => {
+    api.stories.getAll().then(({ stories }) => {
+      const mapped: StoryItem[] = stories.map((s: any) => ({
+        id: String(s._id),
+        name: s.authorDisplayName || s.authorUsername || "User",
+        avatarUrl: s.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${s.authorUsername}&backgroundColor=b6e3f4`,
+        unread: true,
+        authorUsername: s.authorUsername,
+      }));
+      // Deduplicate by authorUsername — show one ring per user
+      const seen = new Set<string>();
+      setApiStories(mapped.filter((s) => { if (seen.has(s.authorUsername)) return false; seen.add(s.authorUsername); return true; }));
+    }).catch(() => {});
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
   const [showShineLoader, setShowShineLoader] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -1264,35 +1355,60 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     } catch { return []; }
   });
 
-  // ---- Real MongoDB feed ----
+  // ---- Real MongoDB feed with cursor pagination ----
   const [apiFeedPosts, setApiFeedPosts] = useState<PostData[]>([]);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+  const [feedNextCursor, setFeedNextCursor] = useState<string | null>(null);
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false);
+
+  const mapApiPost = (p: any): PostData => ({
+    id: String(p._id || p.id),
+    type: (p.type === "video" ? "video" : p.type === "image" ? "image" : "text") as "text" | "image" | "video",
+    content: p.content || "",
+    media: p.media || undefined,
+    likes: p.likesCount ?? (Array.isArray(p.likes) ? p.likes.length : 0),
+    replies: p.replyCount || 0,
+    reposts: p.repostsCount ?? (Array.isArray(p.reposts) ? p.reposts.length : 0),
+    views: p.views || 0,
+    time: p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "recently",
+    isUserPost: false,
+    authorName: p.authorDisplayName || p.authorUsername || "User",
+    authorHandle: p.authorUsername || "",
+    authorAvatar: p.authorAvatar || undefined,
+    music: p.music || undefined,
+    location: p.location || undefined,
+  });
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/posts?limit=40");
-        if (!res.ok || cancelled) return;
-        const json = await res.json();
-        const posts: PostData[] = (json.posts || []).map((p: any) => ({
-          id: p._id || p.id,
-          type: (p.mediaType === "video" ? "video" : p.mediaUrl ? "image" : "text") as "text" | "image" | "video",
-          content: p.content || "",
-          media: p.mediaUrl || undefined,
-          likes: p.likes || 0,
-          replies: p.comments || 0,
-          reposts: p.reshares || 0,
-          views: p.views || 0,
-          time: p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "recently",
-          isUserPost: false,
-          authorName: p.author?.displayName || p.author?.username || "User",
-          authorAvatar: p.author?.profileImage || undefined,
-          music: p.music || undefined,
-        }));
-        if (!cancelled) setApiFeedPosts(posts);
+        const { posts, hasMore, nextCursor } = await api.posts.getFeed({ limit: 20 });
+        if (cancelled) return;
+        setApiFeedPosts(posts.map(mapApiPost));
+        setFeedHasMore(hasMore);
+        setFeedNextCursor(nextCursor);
       } catch { /* offline – no-op */ }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const loadMorePosts = async () => {
+    if (feedLoadingMore || !feedHasMore || !feedNextCursor) return;
+    setFeedLoadingMore(true);
+    try {
+      const { posts, hasMore, nextCursor } = await api.posts.getFeed({ limit: 20, before: feedNextCursor });
+      setApiFeedPosts((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const newPosts = posts.map(mapApiPost).filter((p) => !existingIds.has(p.id));
+        return [...prev, ...newPosts];
+      });
+      setFeedHasMore(hasMore);
+      setFeedNextCursor(nextCursor);
+    } catch { /* offline */ } finally {
+      setFeedLoadingMore(false);
+    }
+  };
   const [reshareTarget, setReshareTarget] = useState<PostData | null>(null);
   const [isSendingPost, setIsSendingPost] = useState(false);
   const [postSentFlash, setPostSentFlash] = useState(false);
@@ -1440,9 +1556,10 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     if (el.scrollTop < 20) setNewPostsPill(false);
     lastScrollY.current = el.scrollTop;
 
-    // Trigger lazy loading to eliminate feed lag
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
-      setVisibleCount((prev) => Math.min(prev + 10, allPosts.length));
+    // Load more from API when near bottom
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
+      loadMorePosts();
+      setVisibleCount((prev) => prev + 10);
     }
   };
 
@@ -1727,7 +1844,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
             </motion.button>
             <span className="text-[10px] text-muted-foreground font-semibold">Post</span>
           </div>
-          {STORIES.map((s) => (
+          {apiStories.map((s) => (
             <motion.button key={s.id} whileTap={{ scale: 0.92 }}
               onClick={() => openProfile(s.id)}
               className="flex flex-col items-center gap-1 shrink-0">
@@ -1736,7 +1853,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
                   <img src={s.avatarUrl} alt={s.name} className="w-full h-full object-cover" />
                 </div>
               </div>
-              <span className="text-[10px] text-muted-foreground font-medium">{s.name}</span>
+              <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[52px]">{s.name}</span>
             </motion.button>
           ))}
         </div>
@@ -1783,6 +1900,8 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
                 transition={{ duration: 0.22, delay: Math.min(i * 0.04, 0.3) }}>
                 <PostCard
                   post={post}
+                  authorName={post.isUserPost ? undefined : post.authorName}
+                  authorAvatar={post.isUserPost ? undefined : post.authorAvatar}
                   currentUserAvatar={post.isUserPost ? user?.avatar || userAvatarUrl : undefined}
                   currentUserNickname={post.isUserPost ? (user?.nickname || "You") : undefined}
                   onComment={openComments}
@@ -1794,6 +1913,16 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
                 <div className="h-px bg-secondary/40 mx-4" />
               </motion.div>
             ))
+        )}
+
+        {/* Load-more spinner */}
+        {feedLoadingMore && (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground/50" />
+          </div>
+        )}
+        {!feedLoadingMore && !feedHasMore && apiFeedPosts.length > 0 && (
+          <p className="text-center text-[11px] text-muted-foreground/50 py-6">You're all caught up ✓</p>
         )}
       </div>
 

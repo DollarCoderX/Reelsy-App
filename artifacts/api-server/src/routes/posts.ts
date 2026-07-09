@@ -34,26 +34,74 @@ interface Comment {
   createdAt: Date;
 }
 
-// GET /api/posts - get feed posts
+// GET /api/posts - get feed posts with cursor pagination
 router.get('/posts', async (req, res) => {
   try {
-    const { limit = 20, skip = 0, username } = req.query;
+    const { limit = 20, skip = 0, username, before } = req.query;
     const collection = await getMongoDBCollection('posts');
 
     const query: any = {};
     if (username) query.authorUsername = username;
+    // Cursor-based pagination using _id (ObjectId encodes creation time, always monotonic)
+    if (before) {
+      try {
+        query._id = { $lt: new ObjectId(String(before)) };
+      } catch {}
+    }
 
     const posts = await collection
       .find(query)
-      .sort({ createdAt: -1 })
-      .skip(Number(skip))
+      .sort({ _id: -1 })   // sort by _id desc — consistent with cursor filtering
+      .skip(before ? 0 : Number(skip))
       .limit(Number(limit))
       .toArray();
 
-    return res.json({ posts });
+    // Attach engagement counts inline for frontend convenience
+    const postsWithCounts = posts.map((p: any) => ({
+      ...p,
+      likesCount: Array.isArray(p.likes) ? p.likes.length : 0,
+      repostsCount: Array.isArray(p.reposts) ? p.reposts.length : 0,
+      savesCount: Array.isArray(p.saves) ? p.saves.length : 0,
+    }));
+
+    const hasMore = posts.length === Number(limit);
+    const nextCursor = hasMore ? String(posts[posts.length - 1]._id) : null;
+
+    return res.json({ posts: postsWithCounts, hasMore, nextCursor });
   } catch (error) {
     console.error('Error fetching posts:', error);
     return res.status(500).json({ error: 'Failed to fetch posts' });
+  }
+});
+
+// GET /api/posts/trending - top posts by engagement in last 24h
+router.get('/posts/trending', async (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+    const collection = await getMongoDBCollection('posts');
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // Fetch recent posts and score them by likes + reposts + views
+    const posts = await collection
+      .find({ createdAt: { $gte: since } })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .toArray();
+
+    const scored = posts.map((p: any) => ({
+      ...p,
+      likesCount: Array.isArray(p.likes) ? p.likes.length : 0,
+      repostsCount: Array.isArray(p.reposts) ? p.reposts.length : 0,
+      savesCount: Array.isArray(p.saves) ? p.saves.length : 0,
+      score: (Array.isArray(p.likes) ? p.likes.length : 0) * 3 +
+             (Array.isArray(p.reposts) ? p.reposts.length : 0) * 2 +
+             (p.views || 0) * 0.1,
+    }));
+
+    scored.sort((a: any, b: any) => b.score - a.score);
+    return res.json({ posts: scored.slice(0, Number(limit)) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch trending posts' });
   }
 });
 

@@ -9,6 +9,8 @@ import postsRouter from "./posts";
 import usersRouter from "./users";
 import friendsRouter from "./friends";
 import messagesRouter from "./messages";
+import storiesRouter from "./stories";
+import blocksRouter from "./blocks";
 
 const router: IRouter = Router();
 
@@ -22,6 +24,8 @@ router.use(postsRouter);
 router.use(usersRouter);
 router.use(friendsRouter);
 router.use(messagesRouter);
+router.use(storiesRouter);
+router.use(blocksRouter);
 
 router.get("/music/search", async (req, res) => {
   const { q } = req.query;

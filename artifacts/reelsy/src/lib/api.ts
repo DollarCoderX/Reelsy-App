@@ -34,8 +34,11 @@ async function request<T>(
 
 export const api = {
   posts: {
-    getFeed: (params?: { limit?: number; skip?: number; username?: string }) =>
-      request<{ posts: Post[] }>('/posts', { query: params as any }),
+    getFeed: (params?: { limit?: number; skip?: number; username?: string; before?: string }) =>
+      request<{ posts: Post[]; hasMore: boolean; nextCursor: string | null }>('/posts', { query: params as any }),
+
+    getTrending: (limit = 20) =>
+      request<{ posts: Post[] }>('/posts/trending', { query: { limit } }),
 
     create: (data: CreatePostData) =>
       request<Post>('/posts', { method: 'POST', body: JSON.stringify(data) }),
@@ -54,6 +57,51 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+  },
+
+  // ─── Stories ──────────────────────────────────────────────────────────────
+  stories: {
+    getAll: () => request<{ stories: Story[] }>('/stories'),
+    getMine: (username: string) =>
+      request<{ stories: Story[] }>('/stories/mine', { query: { username } }),
+    create: (data: CreateStoryData) =>
+      request<Story>('/stories', { method: 'POST', body: JSON.stringify(data) }),
+    view: (storyId: string, username: string) =>
+      request<{ viewed: boolean }>(`/stories/${storyId}/view`, {
+        method: 'POST',
+        body: JSON.stringify({ username }),
+      }),
+    delete: (storyId: string, username: string) =>
+      request<{ message: string }>(`/stories/${storyId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ username }),
+      }),
+  },
+
+  // ─── Blocks / Mutes ───────────────────────────────────────────────────────
+  blocks: {
+    block: (username: string, targetUsername: string) =>
+      request<{ message: string }>('/users/block', {
+        method: 'POST',
+        body: JSON.stringify({ username, targetUsername, action: 'block' }),
+      }),
+    unblock: (username: string, targetUsername: string) =>
+      request<{ message: string }>('/users/block', {
+        method: 'POST',
+        body: JSON.stringify({ username, targetUsername, action: 'unblock' }),
+      }),
+    mute: (username: string, targetUsername: string) =>
+      request<{ message: string }>('/users/block', {
+        method: 'POST',
+        body: JSON.stringify({ username, targetUsername, action: 'mute' }),
+      }),
+    unmute: (username: string, targetUsername: string) =>
+      request<{ message: string }>('/users/block', {
+        method: 'POST',
+        body: JSON.stringify({ username, targetUsername, action: 'unmute' }),
+      }),
+    getBlocks: (username: string) =>
+      request<{ blocks: BlockEntry[] }>('/users/blocks', { query: { username } }),
   },
 
   // ─── Engagement ───────────────────────────────────────────────────────────
@@ -364,4 +412,34 @@ export interface SendMessageData {
   senderAvatar?: string;
   content: string;
   messageType?: 'text' | 'emoji' | 'image' | 'system';
+}
+
+export interface Story {
+  _id: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorAvatar?: string;
+  media: string;
+  type: 'image' | 'video';
+  content?: string;
+  views: string[];
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface CreateStoryData {
+  authorUsername: string;
+  authorDisplayName: string;
+  authorAvatar?: string;
+  media: string;
+  type?: 'image' | 'video';
+  content?: string;
+}
+
+export interface BlockEntry {
+  _id: string;
+  username: string;
+  targetUsername: string;
+  type: 'block' | 'mute';
+  createdAt: string;
 }

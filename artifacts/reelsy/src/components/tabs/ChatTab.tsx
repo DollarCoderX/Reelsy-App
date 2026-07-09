@@ -30,6 +30,7 @@ import { hasSeenFeatureIntro, markFeatureIntroSeen } from "@/lib/featureIntro";
 import { generateText } from "@/lib/ai";
 import UserProfile from "@/components/UserProfile";
 import { LottieEmoji } from "@/components/LottieEmoji";
+import { EmojiText } from "@/components/EmojiText";
 
 
 interface ChatTabProps { onNavVisible?: (v: boolean) => void; }
@@ -1982,6 +1983,7 @@ const TypingIndicator = ({ name }: { name: string }) => (
 
 // ---- Render post content with # and @ highlighting ----
 const renderContent = (text: string) => {
+  // Split on @mentions and #hashtags, render emojis as Lottie animations
   const parts = text.split(/([@#]\w+)/g);
   return parts.map((part, i) => {
     if (part.startsWith("@") || part.startsWith("#")) {
@@ -1989,7 +1991,8 @@ const renderContent = (text: string) => {
         <span key={i} className="text-blue-500 font-semibold">{part}</span>
       );
     }
-    return <span key={i}>{part}</span>;
+    // Use EmojiText to animate any emojis in plain text segments
+    return <EmojiText key={i} text={part} emojiSize={18} />;
   });
 };
 
