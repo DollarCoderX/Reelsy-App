@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { sendOTP, verifyOTP, generateMagicLinkToken, verifyMagicLinkToken } from '../lib/otp';
 import { hashPassword, verifyPassword, generateToken, generateUniqueUsername, generateBaseUsername, findAvailableUsername } from '../lib/auth-utils';
-import { getUsersCollection, ReelsyUser } from '../lib/mongodb';
-import { createSupabaseUser, getSupabaseUser, updateSupabaseUser, initSupabase, checkSupabaseUserStatus, banUserViaAdmin, unbanUserViaAdmin } from '../lib/supabase';
+import { getUsersCollection, getMongoDBCollection, ReelsyUser } from '../lib/mongodb';
+import { createSupabaseUser, getSupabaseUser, updateSupabaseUser, initSupabase, checkSupabaseUserStatus, banUserViaAdmin, unbanUserViaAdmin, confirmUserEmail } from '../lib/supabase';
 import { isSuspiciousEmail, addStrike, sendSuspensionReviewEmail } from '../lib/suspension';
 
 const router = Router();
@@ -363,6 +363,16 @@ router.post('/signin-google', async (req, res) => {
 
     const mongoResult = await usersCollection.insertOne(mongoUser);
 
+    // Confirm the email in Supabase so the account is not auto-banned for "unconfirmed email".
+    // Google already verified the address so this is safe to do immediately.
+    // We explicitly initialize Supabase first so the admin client is ready.
+    try {
+      await ensureSupabaseInitialized();
+      await confirmUserEmail(supabaseUser.id);
+    } catch (confirmErr) {
+      console.warn('Could not confirm email for Google user:', confirmErr);
+    }
+
     // Generate token
     const token = generateToken({ userId: mongoResult.insertedId, username, email });
 
@@ -549,11 +559,25 @@ router.post('/suspension-review', async (req, res) => {
       ...telemetry,
     };
 
-    // Send review request to admin email
-    const emailSent = await sendSuspensionReviewEmail(email, username, reviewData);
+    // Persist the appeal to MongoDB so it is never lost even if email fails
+    try {
+      const appealsCol = await getMongoDBCollection('appeals');
+      await (appealsCol as any).insertOne({
+        username,
+        email,
+        reviewData,
+        status: 'pending',
+        submittedAt: new Date(),
+      });
+    } catch (mongoErr) {
+      console.warn('Could not save appeal to MongoDB (non-fatal):', mongoErr);
+    }
 
-    if (!emailSent) {
-      return res.status(500).json({ error: 'Failed to send review request' });
+    // Send review request to admin email (best-effort — do not fail the request if this errors)
+    try {
+      await sendSuspensionReviewEmail(email, username, reviewData);
+    } catch (emailErr) {
+      console.warn('Could not send appeal email (non-fatal):', emailErr);
     }
 
     return res.status(200).json({

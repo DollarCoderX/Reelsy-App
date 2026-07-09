@@ -399,6 +399,28 @@ export async function banUserViaAdmin(
  * Unban a user via Supabase Admin API
  * Clears ban duration and updates MongoDB
  */
+/**
+ * Confirm a user's email in Supabase to prevent auto-ban for unconfirmed emails.
+ * Called after Google OAuth signup since Google already verified the email.
+ */
+export async function confirmUserEmail(supabaseUserId: string): Promise<boolean> {
+  try {
+    const client = getSupabaseClient();
+    const { error } = await client.auth.admin.updateUserById(supabaseUserId, {
+      email_confirm: true,
+    });
+    if (error) {
+      console.warn('Could not confirm user email in Supabase:', error.message);
+      return false;
+    }
+    console.log(`Email confirmed for Supabase user ${supabaseUserId}`);
+    return true;
+  } catch (err) {
+    console.warn('confirmUserEmail failed:', err);
+    return false;
+  }
+}
+
 export async function unbanUserViaAdmin(
   supabaseUserId: string,
   mongoUsersCollection: any

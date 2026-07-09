@@ -242,6 +242,17 @@ export async function resharePost(postId: string, userId: string, username: stri
     if (existing) {
       return { success: false, reshareCount: 0 }; // Already reshared
     }
+
+    // Prevent resharing your own post
+    const postData = await postsCollection.findOne({ _id: objectId });
+    if (!postData) return { success: false, reshareCount: 0 };
+    const postDoc = postData as any;
+    const isSelfPost =
+      (postDoc.userId && postDoc.userId === userId) ||
+      (postDoc.authorUsername && postDoc.authorUsername === username);
+    if (isSelfPost) {
+      return { success: false, reshareCount: 0 };
+    }
     
     // Add reshare
     await engagementCollection.insertOne({

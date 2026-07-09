@@ -658,9 +658,13 @@ const PostCard = ({
   };
 
   const handleReshare = async () => {
+    // Prevent resharing your own post
+    if (post.isUserPost || post.authorHandle === user?.username) {
+      showToast("You can't reshare your own post");
+      return;
+    }
     try {
-      await onRepost(post);
-      showToast("Post reshared!");
+      onRepost(post);
     } catch (err) {
       showToast("Failed to reshare");
     }
@@ -1566,7 +1570,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     }
   };
 
-  const handleNewPost = (postData: { type: "text" | "image" | "video"; content: string; media?: string | string[]; music?: { title: string; artist: string; url: string }; location?: { lat: number; lng: number; name: string }; aiGenerated?: boolean }) => {
+  const handleNewPost = async (postData: { type: "text" | "image" | "video"; content: string; media?: string | string[]; music?: { title: string; artist: string; url: string }; location?: { lat: number; lng: number; name: string }; aiGenerated?: boolean }) => {
     setIsSendingPost(true);
     const newPost: PostData = {
       id: `user-${Date.now()}`,
@@ -1581,12 +1585,31 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
       location: postData.location,
       aiGenerated: postData.aiGenerated,
       reshare: reshareTarget ? {
-        authorName: "User",
-        authorHandle: "@user",
+        authorName: reshareTarget.authorName || reshareTarget.authorHandle || "User",
+        authorHandle: reshareTarget.authorHandle || "user",
         content: reshareTarget.content,
         media: reshareTarget.media,
       } : undefined,
     };
+
+    // Save post to backend so other users can see it
+    if (user?.username) {
+      try {
+        await api.posts.create({
+          authorUsername: user.username,
+          authorDisplayName: user.nickname || user.username,
+          authorAvatar: user.avatar,
+          content: postData.content,
+          type: postData.type,
+          media: Array.isArray(postData.media) ? postData.media : postData.media ? [postData.media] : undefined,
+          music: postData.music,
+          location: postData.location,
+        });
+      } catch (apiErr) {
+        console.error("Failed to save post to backend:", apiErr);
+      }
+    }
+
     setTimeout(() => {
       setUserPosts((p) => {
         const updated = [newPost, ...p];
@@ -1947,8 +1970,8 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
             onClose={closeComposer}
             onPost={handleNewPost}
             resharePost={reshareTarget ? {
-              authorName: "User",
-              authorHandle: "@user",
+              authorName: reshareTarget.authorName || reshareTarget.authorHandle || "User",
+              authorHandle: reshareTarget.authorHandle ? `@${reshareTarget.authorHandle}` : "@user",
               content: reshareTarget.content,
               media: reshareTarget.media,
             } : undefined}

@@ -48,6 +48,7 @@ function formatFollowers(n: number): string {
 const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => void; onGoHome?: () => void }) => {
   const { user } = useAppContext();
   const { sendRequest, statusCache, loading: friendLoading, acceptRequest, declineRequest, getStatus } = useFriends();
+  const [actionToast, setActionToast] = useState<string>("");
   const { isOnline } = useOnlinePresence(user?.username || undefined);
 
   const [query, setQuery] = useState("");
@@ -149,13 +150,19 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
     // "friends" → could unfriend, but keep simple for now
   }, [statusCache, sendRequest, declineRequest, acceptRequest, user?.username]);
 
+  const showToast = useCallback((msg: string) => {
+    setActionToast(msg);
+    setTimeout(() => setActionToast(""), 3000);
+  }, []);
+
   const handleBlock = useCallback(async (targetUsername: string) => {
     if (!user?.username || targetUsername === user.username) return;
     try {
       await api.blocks.block(user.username, targetUsername);
       setBlockedUsers((prev) => new Set([...prev, targetUsername]));
+      showToast(`You blocked @${targetUsername}`);
     } catch {}
-  }, [user?.username]);
+  }, [user?.username, showToast]);
 
   const handleUnblock = useCallback(async (targetUsername: string) => {
     if (!user?.username) return;
@@ -185,6 +192,20 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
+      {/* Block / action toast */}
+      <AnimatePresence>
+        {actionToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-foreground px-5 py-2.5 text-[13px] font-semibold text-background shadow-lg"
+          >
+            {actionToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="shrink-0 px-4 pt-5 pb-2">
         <h1 className="text-[22px] font-black mb-3 tracking-tight">Search</h1>
