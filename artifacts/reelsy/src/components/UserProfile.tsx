@@ -13,6 +13,7 @@ import {
   UserX,
   UserPlus,
   Users,
+  Loader2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Bot } from "@/data/bots";
@@ -22,11 +23,16 @@ import {
   isAutonomousBotId,
   readFriendBotIds,
 } from "@/data/bots";
+import { api, UserProfile as ApiUserProfile } from "@/lib/api";
+import { useFriends } from "@/hooks/useFriends";
+import { useAppContext } from "@/context/AppContext";
 
 interface UserProfileProps {
-  bot: Bot | null;
+  bot?: Bot | null;
+  realUser?: ApiUserProfile | null;
   onClose: () => void;
-  onChat: (bot: Bot) => void;
+  onChat?: (bot: Bot) => void;
+  onMessage?: (user: ApiUserProfile) => void;
 }
 
 type FriendStatus = "none" | "requested" | "friends";
@@ -52,6 +58,14 @@ const BOT_COVERS = [
   "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=1200&auto=format&fit=crop",
 ];
 
+const REAL_USER_COVERS = [
+  "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1200&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=1200&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=1200&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1200&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=1200&auto=format&fit=crop",
+];
+
 const profilePostText = (name: string, role: string) =>
   `${role} is not just a title. It is how ${name.split(" ")[0]} notices small details, builds a point of view, and turns simple ideas into something people can feel.`;
 
@@ -60,17 +74,286 @@ const coverForBot = (id: string) => {
   return BOT_COVERS[index];
 };
 
-const UserProfile = ({ bot, onClose, onChat }: UserProfileProps) => {
+const coverForUser = (username: string) => {
+  const index = username.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0) % REAL_USER_COVERS.length;
+  return REAL_USER_COVERS[index];
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Real User Profile
+// ─────────────────────────────────────────────────────────────────────────────
+const RealUserProfileView = ({
+  realUser,
+  onClose,
+  onMessage,
+}: {
+  realUser: ApiUserProfile;
+  onClose: () => void;
+  onMessage?: (user: ApiUserProfile) => void;
+}) => {
+  const { user: me } = useAppContext();
+  const { sendRequest, statusCache, loading: friendLoading, acceptRequest, declineRequest, getStatus } = useFriends();
+  const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [stats, setStats] = useState<{ friendCount: number; postCount: number } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const isMe = me?.username === realUser.username;
+  const friendState = statusCache[realUser.username];
+  const friendStatus = friendState?.status || "none";
+  const isLoading = friendLoading[realUser.username] || false;
+
+  useEffect(() => {
+    getStatus(realUser.username).catch(() => {});
+    api.users.getStats(realUser.username)
+      .then((data) => setStats(data))
+      .catch(() => {});
+  }, [realUser.username]);
+
+  const handleFriendAction = async () => {
+    if (isMe) return;
+    if (friendStatus === "none") {
+      await sendRequest(realUser.username);
+    } else if (friendStatus === "request_sent" && friendState?.requestId) {
+      await declineRequest(friendState.requestId, realUser.username);
+    } else if (friendStatus === "request_received" && friendState?.requestId) {
+      await acceptRequest(friendState.requestId, realUser.username);
+    }
+  };
+
+  const friendLabel =
+    friendStatus === "friends" ? "Friends" :
+    friendStatus === "request_sent" ? "Pending" :
+    friendStatus === "request_received" ? "Accept" :
+    "Add Friend";
+
+  const FriendIcon = friendStatus === "friends" ? Users : UserPlus;
+
+  const avatarUrl = realUser.profileImage ||
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=${realUser.username}&backgroundColor=b6e3f4`;
+  const coverUrl = coverForUser(realUser.username);
+  const displayName = realUser.displayName || realUser.username;
+
+  const handleShare = () => {
+    navigator.clipboard?.writeText(`https://reelsy-com.vercel.app/user/${realUser.username}`).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    setMenuOpen(false);
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[999] bg-background"
+      >
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", stiffness: 330, damping: 34 }}
+          className="absolute inset-0 flex flex-col overflow-hidden bg-background text-foreground"
+        >
+          {/* Cover */}
+          <div className="relative h-[236px] shrink-0 overflow-visible bg-background">
+            <div
+              className="absolute inset-0 overflow-hidden bg-secondary"
+              style={{
+                backgroundImage: `linear-gradient(to bottom, hsl(var(--background) / 0.04), hsl(var(--background) / 0.18) 48%, hsl(var(--background) / 0.82)), url(${coverUrl})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            />
+            {/* Top bar */}
+            <div className="absolute left-4 right-4 top-5 flex items-center justify-between">
+              <button
+                onClick={onClose}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-background/40 bg-background/75 text-foreground shadow-sm backdrop-blur-md"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-background/40 bg-background/70 text-foreground shadow-sm backdrop-blur-md"
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+                <AnimatePresence>
+                  {menuOpen && (
+                    <>
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.94, y: -6 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.94, y: -6 }}
+                        className="absolute right-0 top-12 z-20 w-52 overflow-hidden rounded-2xl border border-secondary bg-background shadow-2xl"
+                      >
+                        <button onClick={handleShare}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] font-semibold">
+                          <Share2 className="h-4 w-4 text-muted-foreground" />
+                          {copied ? "Copied!" : "Share profile"}
+                        </button>
+                        <button onClick={() => setMenuOpen(false)}
+                          className="flex w-full items-center gap-3 border-t border-secondary/60 px-4 py-3 text-left text-[13px] font-semibold">
+                          <Flag className="h-4 w-4 text-muted-foreground" />
+                          Report profile
+                        </button>
+                        {!isMe && (
+                          <button onClick={() => setMenuOpen(false)}
+                            className="flex w-full items-center gap-3 border-t border-secondary/60 px-4 py-3 text-left text-[13px] font-semibold text-rose-500">
+                            <UserX className="h-4 w-4" />
+                            Block user
+                          </button>
+                        )}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* Avatar */}
+            <div className="absolute bottom-0 left-5 z-10 translate-y-1/2">
+              <div className="h-[82px] w-[82px] overflow-hidden rounded-[26px] border-[4px] border-background bg-secondary shadow-xl">
+                <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            {!isMe && (
+              <div className="absolute bottom-0 right-5 z-10 flex translate-y-1/2 items-center gap-2">
+                {onMessage && (friendStatus === "friends" || friendStatus === "none") && (
+                  <button
+                    onClick={() => { if (onMessage) onMessage(realUser); onClose(); }}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-foreground shadow-sm"
+                  >
+                    <Mail className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  onClick={handleFriendAction}
+                  disabled={isLoading}
+                  className={`flex h-10 items-center gap-1.5 rounded-full px-5 text-[12px] font-bold shadow-sm disabled:opacity-60 ${
+                    friendStatus === "friends" || friendStatus === "request_sent"
+                      ? "bg-secondary text-foreground"
+                      : friendStatus === "request_received"
+                      ? "bg-green-500 text-white"
+                      : "bg-foreground text-background"
+                  }`}
+                >
+                  {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FriendIcon className="h-3.5 w-3.5" />}
+                  {friendLabel}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto overscroll-none bg-background">
+            <div className="px-5 pb-8 pt-14">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-[20px] font-bold tracking-tight">{displayName}</h2>
+                </div>
+                <p className="text-[12px] font-medium text-muted-foreground">@{realUser.username}</p>
+              </div>
+
+              <div className="mt-3 flex items-center gap-4 text-[13px]">
+                <p>
+                  <span className="font-bold">{stats?.friendCount ?? "—"}</span>{" "}
+                  <span className="text-muted-foreground">Friends</span>
+                </p>
+                <p>
+                  <span className="font-bold">{stats?.postCount ?? "—"}</span>{" "}
+                  <span className="text-muted-foreground">Posts</span>
+                </p>
+              </div>
+
+              {realUser.bio && (
+                <p className="mt-3 max-w-[310px] text-[13px] leading-relaxed">{realUser.bio}</p>
+              )}
+
+              <div className="mt-5 flex border-b border-secondary/80">
+                {(["posts", "media"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 pb-3 text-[13px] font-bold capitalize transition-colors ${
+                      activeTab === tab ? "border-b-2 border-foreground text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === "posts" ? (
+                <div className="border-b border-secondary/70 py-4">
+                  <div className="flex gap-3">
+                    <img src={avatarUrl} alt="" className="h-10 w-10 rounded-full bg-secondary object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[13px] font-bold">{displayName}</p>
+                          <p className="text-[11px] text-muted-foreground">@{realUser.username}</p>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-[12px] leading-relaxed text-foreground/85">
+                        Welcome to my profile! Check out my posts and let's connect.
+                      </p>
+                      <div className="mt-3 flex items-center gap-5 text-muted-foreground">
+                        <span className="flex items-center gap-1 text-[11px]"><Heart className="h-3.5 w-3.5" /> {stats?.postCount || 0}</span>
+                        <span className="flex items-center gap-1 text-[11px]"><MessageCircle className="h-3.5 w-3.5" /> 0</span>
+                        <span className="flex items-center gap-1 text-[11px]"><Bookmark className="h-3.5 w-3.5" /> Save</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-1 py-4">
+                  {GRID_IMAGES.map((img, index) => (
+                    <div key={img} className="relative aspect-square overflow-hidden rounded-sm bg-secondary">
+                      <img src={img} alt="" className="h-full w-full object-cover" />
+                      {index === 2 && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                          <Play className="h-6 w-6 fill-white text-white" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bot Profile (original)
+// ─────────────────────────────────────────────────────────────────────────────
+const BotProfileView = ({
+  bot,
+  onClose,
+  onChat,
+}: {
+  bot: Bot;
+  onClose: () => void;
+  onChat: (bot: Bot) => void;
+}) => {
   const [friendStatus, setFriendStatus] = useState<FriendStatus>("none");
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (!bot) return;
     setFriendStatus(readFriendBotIds().includes(bot.id) ? "friends" : "none");
   }, [bot?.id]);
-
-  if (!bot) return null;
 
   const avatarUrl = getBotAvatarUrl(bot);
   const coverUrl = coverForBot(bot.id);
@@ -86,7 +369,7 @@ const UserProfile = ({ bot, onClose, onChat }: UserProfileProps) => {
     }
   };
 
-  const friendLabel = friendStatus === "friends" ? "Friends" : friendStatus === "requested" ? "Requested" : "Befriend";
+  const friendLabel = friendStatus === "friends" ? "Friends" : friendStatus === "requested" ? "Pending" : "Add Friend";
   const FriendIcon = friendStatus === "friends" ? Users : UserPlus;
 
   return (
@@ -147,7 +430,7 @@ const UserProfile = ({ bot, onClose, onChat }: UserProfileProps) => {
                     >
                       <button
                         onClick={() => {
-                          navigator.clipboard?.writeText(`https://reelsy.app/user/${bot.id}`).catch(() => {});
+                          navigator.clipboard?.writeText(`https://reelsy-com.vercel.app/user/${bot.id}`).catch(() => {});
                           setMenuOpen(false);
                         }}
                         className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] font-semibold"
@@ -217,8 +500,8 @@ const UserProfile = ({ bot, onClose, onChat }: UserProfileProps) => {
               </div>
 
               <div className="mt-3 flex items-center gap-4 text-[13px]">
-                <p><span className="font-bold">{bot.following}</span> Friends</p>
-                <p><span className="font-bold">{bot.followers}</span> Posts</p>
+                <p><span className="font-bold">{bot.following}</span> <span className="text-muted-foreground">Friends</span></p>
+                <p><span className="font-bold">{bot.followers}</span> <span className="text-muted-foreground">Posts</span></p>
               </div>
 
               <p className="mt-3 max-w-[310px] text-[13px] leading-relaxed">{bot.bio}</p>
@@ -280,6 +563,19 @@ const UserProfile = ({ bot, onClose, onChat }: UserProfileProps) => {
       </motion.div>
     </AnimatePresence>
   );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main export — routes to Bot or Real User view
+// ─────────────────────────────────────────────────────────────────────────────
+const UserProfile = ({ bot, realUser, onClose, onChat, onMessage }: UserProfileProps) => {
+  if (realUser) {
+    return <RealUserProfileView realUser={realUser} onClose={onClose} onMessage={onMessage} />;
+  }
+  if (bot && onChat) {
+    return <BotProfileView bot={bot} onClose={onClose} onChat={onChat} />;
+  }
+  return null;
 };
 
 export default UserProfile;

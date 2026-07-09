@@ -10,6 +10,7 @@ import { useFriends } from "@/hooks/useFriends";
 import { useAppContext } from "@/context/AppContext";
 import { LottieEmoji } from "@/components/LottieEmoji";
 import { useOnlinePresence } from "@/hooks/useOnlinePresence";
+import UserProfileModal from "@/components/UserProfile";
 
 const CATEGORIES = ["All", "People", "Posts", "Companies", "Tags"];
 
@@ -62,6 +63,7 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
   const [realUsers, setRealUsers] = useState<UserProfile[]>([]);
   const [realUsersLoading, setRealUsersLoading] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
+  const [viewingRealUser, setViewingRealUser] = useState<UserProfile | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Bot friend status (local, for bots only)
@@ -172,16 +174,16 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
     } catch {}
   }, [user?.username]);
 
-  // Button label/style — Follow model language
+  // Button label/style — Friend model language
   const getFollowButtonInfo = (username: string) => {
     if (blockedUsers.has(username)) {
       return { icon: <ShieldOff className="w-3 h-3" />, label: "Blocked", style: "bg-secondary/60 text-muted-foreground border border-secondary" };
     }
     const status = statusCache[username]?.status || "none";
-    if (status === "friends") return { icon: <UserCheck className="w-3 h-3" />, label: "Following", style: "bg-secondary text-foreground border border-secondary" };
-    if (status === "request_sent") return { icon: <Clock className="w-3 h-3" />, label: "Requested", style: "bg-secondary text-muted-foreground border border-secondary" };
+    if (status === "friends") return { icon: <UserCheck className="w-3 h-3" />, label: "Friends", style: "bg-secondary text-foreground border border-secondary" };
+    if (status === "request_sent") return { icon: <Clock className="w-3 h-3" />, label: "Pending", style: "bg-secondary text-muted-foreground border border-secondary" };
     if (status === "request_received") return { icon: <Check className="w-3 h-3" />, label: "Accept", style: "bg-green-600 text-white border border-green-600" };
-    return { icon: <UserPlus className="w-3 h-3" />, label: "Follow", style: "bg-foreground text-background border border-foreground" };
+    return { icon: <UserPlus className="w-3 h-3" />, label: "Add Friend", style: "bg-foreground text-background border border-foreground" };
   };
 
   const matchingAutoBots = normalizedQuery
@@ -313,8 +315,11 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
                       transition={{ delay: idx * 0.04 }}
                       className="flex items-center gap-3 py-3"
                     >
-                      {/* Avatar */}
-                      <div className="relative shrink-0">
+                      {/* Avatar — tappable to open profile */}
+                      <button
+                        className="relative shrink-0"
+                        onClick={() => setViewingRealUser(u)}
+                      >
                         <div
                           className="h-[52px] w-[52px] rounded-full bg-secondary overflow-hidden flex items-center justify-center text-[18px] font-bold"
                           style={{
@@ -328,18 +333,18 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
                         {online && (
                           <span className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
                         )}
-                      </div>
+                      </button>
 
-                      {/* Info */}
-                      <div className="min-w-0 flex-1">
+                      {/* Info — tappable to open profile */}
+                      <button className="min-w-0 flex-1 text-left" onClick={() => setViewingRealUser(u)}>
                         <p className="truncate text-[14px] font-bold leading-tight">{u.username}</p>
                         <p className="truncate text-[12px] text-muted-foreground leading-tight mt-0.5">
                           {u.displayName && u.displayName !== u.username ? u.displayName : u.bio || "Reelsy user"}
                         </p>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {formatFollowers(u.followersCount ?? 0)} followers
+                          {formatFollowers(u.followersCount ?? 0)} friends
                         </p>
-                      </div>
+                      </button>
 
                       {/* Action buttons */}
                       <div className="flex items-center gap-2 shrink-0">
@@ -406,7 +411,7 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
                             ? "bg-secondary text-foreground border-secondary"
                             : "bg-foreground text-background border-foreground"
                         }`}>
-                        {status === "friends" ? <><UserCheck className="h-3 w-3" /> Following</> : <><UserPlus className="h-3 w-3" /> Follow</>}
+                        {status === "friends" ? <><UserCheck className="h-3 w-3" /> Friends</> : <><UserPlus className="h-3 w-3" /> Add Friend</>}
                       </motion.button>
                       {status === "friends" && (
                         <motion.button whileTap={{ scale: 0.92 }} onClick={() => onOpenThread?.(person.botId)}
