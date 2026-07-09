@@ -981,7 +981,7 @@ const PostCard = ({
                     {
                       icon: Link, label: "Copy link",
                       action: () => {
-                        navigator.clipboard?.writeText(`https://reelsy.app/post/${post.id}`).catch(() => { });
+                        navigator.clipboard?.writeText(`https://reelsy-com.vercel.app/post/${post.id}`).catch(() => { });
                         setShowOptions(false);
                         showToast("Link copied!");
                       },

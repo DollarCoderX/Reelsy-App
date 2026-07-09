@@ -115,6 +115,46 @@ const SPECIAL_EMOJIS: Record<string, object> = {
   "⭐": { scale: [1, 1.2, 0.9, 1.15, 1], rotate: [0, 72, 144, 216, 288, 360], transition: { duration: 1.5, repeat: Infinity } },
 };
 
+// ── Message sounds (Messenger-style) ──────────────────────────────────────────
+const playMsgSound = (type: 'send' | 'receive') => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    if (type === 'send') {
+      osc.frequency.setValueAtTime(1046, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1318, ctx.currentTime + 0.06);
+      gain.gain.setValueAtTime(0.22, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.18);
+    } else {
+      osc.frequency.setValueAtTime(698, ctx.currentTime);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.22);
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, ctx.currentTime + 0.11);
+      gain2.gain.setValueAtTime(0.0001, ctx.currentTime + 0.11);
+      gain2.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 0.15);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+      osc2.start(ctx.currentTime + 0.11);
+      osc2.stop(ctx.currentTime + 0.32);
+    }
+    setTimeout(() => ctx.close().catch(() => {}), 600);
+  } catch {}
+};
+
 const AnimatedEmoji = ({ emoji, isMine }: { emoji: string; isMine: boolean }) => {
   const anim = SPECIAL_EMOJIS[emoji];
   return (
@@ -1964,18 +2004,12 @@ const MediaEditor = ({ mediaList, setMediaList, tier, onSend, onClose, requestFe
 const TypingIndicator = ({ name }: { name: string }) => (
   <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
     className="flex items-center gap-2 px-2">
-    <div className="flex items-center gap-1.5 px-3 py-2.5 bg-secondary rounded-[18px] rounded-bl-sm">
-      <span className="text-[11px] text-muted-foreground font-medium relative overflow-hidden pr-1">
-        <span>{name} is typing</span>
-        <motion.span className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/15 to-transparent"
-          animate={{ x: ["-100%", "200%"] }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
-          style={{ display: "block" }} />
-      </span>
+    <div className="flex items-center gap-1.5 px-4 py-3 bg-secondary rounded-2xl rounded-bl-sm min-w-[56px]">
       {[0, 0.22, 0.44].map((d, i) => (
-        <motion.div key={i} animate={{ scale: [0.6, 1, 0.6], opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 0.8, repeat: Infinity, delay: d }}
-          className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+        <motion.div key={i}
+          animate={{ y: [0, -5, 0], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 0.7, repeat: Infinity, delay: d, ease: "easeInOut" }}
+          className="w-2 h-2 rounded-full bg-muted-foreground" />
       ))}
     </div>
   </motion.div>
@@ -2567,6 +2601,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
       replyTo: replyTo ? { content: replyTo.content, fromName: replyTo.fromName } : undefined,
     };
     setMessages((p) => ({ ...p, [activeId]: [...(p[activeId] || []), newMsg] }));
+    playMsgSound('send');
     setThreads((p) => p.map((t) => t.id === activeId ? { ...t, lastMessage: text || "📄 File shared", time: "now" } : t));
     if (!overrideText) setInput("");
     setReplyTo(null);
@@ -2593,6 +2628,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
               isMine: false,
             };
         setIsTyping(false);
+        playMsgSound('receive');
         setMessages((p) => ({ ...p, [activeId]: [...(p[activeId] || []), reply] }));
         setThreads((p) => p.map((t) => t.id === activeId ? { ...t, lastMessage: reply.mediaType === "image" ? "Generated an image" : reply.content.slice(0, 44), time: "now" } : t));
       }, 500);
@@ -3334,7 +3370,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                       className={`max-w-[78%] overflow-hidden ${
                         msg.mediaType === "image" || msg.mediaType === "video"
                           ? "rounded-[18px] border border-secondary/40"
-                          : "px-3.5 py-2 rounded-[18px] bg-secondary text-foreground"
+                          : "px-4 py-3 rounded-2xl bg-secondary text-foreground"
                       } ${msg.isMine && msg.mediaType !== "image" && msg.mediaType !== "video" ? "bg-foreground text-background" : ""} ${
                         msg.isMine ? "rounded-br-sm" : "rounded-bl-sm"
                       }`}

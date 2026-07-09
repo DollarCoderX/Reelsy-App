@@ -148,4 +148,55 @@ router.patch('/users/:username/phone', async (req, res) => {
   }
 });
 
+// GET /api/users/:username/stats - get user stats (friends count, posts count)
+router.get('/users/:username/stats', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const [friendsCollection, postsCollection] = await Promise.all([
+      import('../lib/mongodb').then(m => m.getMongoDBCollection('friends')),
+      import('../lib/mongodb').then(m => m.getMongoDBCollection('posts')),
+    ]);
+
+    const usersCollection = await getUsersCollection();
+    const user = await usersCollection.findOne({ username });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const userId = (user as any).supabaseId || user._id?.toString() || username;
+
+    const [friendCount, postCount] = await Promise.all([
+      friendsCollection.countDocuments({ userId }),
+      postsCollection.countDocuments({ authorUsername: username }),
+    ]);
+
+    return res.json({ friendCount, postCount, username });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
+// PATCH /api/users/:username/settings - save user privacy settings
+router.patch('/users/:username/settings', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const { friendPolicy, bio, displayName, profileImage } = req.body;
+
+    const usersCollection = await getUsersCollection();
+    const updateFields: any = { updatedAt: new Date() };
+    if (friendPolicy !== undefined) updateFields.friendPolicy = friendPolicy;
+    if (bio !== undefined) updateFields.bio = bio;
+    if (displayName !== undefined) updateFields.displayName = displayName;
+    if (profileImage !== undefined) updateFields.profileImage = profileImage;
+
+    await usersCollection.updateOne(
+      { username },
+      { $set: updateFields },
+      { upsert: false }
+    );
+
+    return res.json({ message: 'Settings updated' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
 export default router;

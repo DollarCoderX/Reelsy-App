@@ -69,6 +69,32 @@ router.post('/messages/conversations', async (req, res) => {
       return res.status(400).json({ error: 'myUserId and otherUserId required' });
     }
 
+    // Check if target user has friends-only chat policy
+    try {
+      const { getUsersCollection } = await import('../lib/mongodb');
+      const usersCollection = await getUsersCollection();
+      const targetUser = await usersCollection.findOne({ username: otherUsername });
+      if (targetUser && (targetUser as any).friendPolicy === 'request-only') {
+        // Check if they're friends
+        const { getMongoDBCollection } = await import('../lib/mongodb');
+        const friendsCollection = await getMongoDBCollection('friends');
+        const areFriends = await friendsCollection.findOne({
+          $or: [
+            { userId: myUserId, friendId: otherUserId },
+            { userId: otherUserId, friendId: myUserId },
+          ],
+        });
+        if (!areFriends) {
+          return res.status(403).json({
+            error: 'This user only accepts messages from friends',
+            code: 'FRIENDS_ONLY',
+          });
+        }
+      }
+    } catch (_) {
+      // Non-fatal — proceed if check fails
+    }
+
     const sb = await getSupabase();
 
     // Find existing DM conversation between these two
