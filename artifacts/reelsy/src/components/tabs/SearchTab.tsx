@@ -193,6 +193,7 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
     : [];
 
   return (
+    <>
     <div className="absolute inset-0 flex flex-col bg-background">
       {/* Block / action toast */}
       <AnimatePresence>
@@ -560,6 +561,21 @@ const SearchTab = ({ onOpenThread, onGoHome }: { onOpenThread?: (id: string) => 
         )}
       </div>
     </div>
+
+    {/* Real user profile modal */}
+    {viewingRealUser && (
+      <UserProfileModal
+        realUser={viewingRealUser}
+        onClose={() => setViewingRealUser(null)}
+        onMessage={(u) => {
+          setViewingRealUser(null);
+          localStorage.setItem("reelsy_open_dm_username", u.username || "");
+          localStorage.setItem("reelsy_open_dm_displayName", u.displayName || u.username || "");
+          localStorage.setItem("reelsy_open_dm_avatar", u.profileImage || "");
+        }}
+      />
+    )}
+    </>
   );
 };
 

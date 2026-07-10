@@ -168,7 +168,7 @@ export const api = {
     getStats: (username: string) =>
       request<{ friendCount: number; postCount: number; username: string }>(`/users/${username}/stats`),
 
-    updateSettings: (username: string, settings: { friendPolicy?: 'open' | 'request-only'; bio?: string; displayName?: string }) =>
+    updateSettings: (username: string, settings: { friendPolicy?: 'open' | 'request-only'; bio?: string; displayName?: string; callerSupabaseId?: string }) =>
       request<{ message: string }>(`/users/${username}/settings`, {
         method: 'PATCH',
         body: JSON.stringify(settings),

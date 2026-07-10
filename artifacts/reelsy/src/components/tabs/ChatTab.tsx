@@ -2641,6 +2641,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
       if (botReply !== null) {
         // Instant reply for commands
         setTimeout(() => {
+          playMsgSound('receive');
           setMessages((p) => ({
             ...p,
             [activeId]: [...(p[activeId] || []), {
@@ -2654,6 +2655,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
         setIsTyping(true);
         setTimeout(() => {
           setIsTyping(false);
+          playMsgSound('receive');
           const genericReplies = ["I can help with that! Try using a command. Send .menu for the full list.", "Interesting! Try .joke for a laugh or .advice for wisdom 😄", "I'm not sure about that. Type .menu to see what I can do!"];
           const reply = genericReplies[Math.floor(Math.random() * genericReplies.length)];
           setMessages((p) => ({
@@ -2674,6 +2676,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
       setTimeout(() => {
         setIsTyping(false);
         if (response) {
+          playMsgSound('receive');
           setMessages((p) => ({
             ...p,
             [activeId]: [...(p[activeId] || []), {
@@ -2702,6 +2705,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
           ? await getAutonomousBotReply(bot.name, bot.personality, text)
           : replyPool[Math.floor(Math.random() * replyPool.length)];
         setIsTyping(false);
+        playMsgSound('receive');
         setMessages((p) => ({
           ...p,
           [activeId]: [...(p[activeId] || []), {

@@ -43,6 +43,7 @@ interface PostData {
   // Real author fields from MongoDB
   authorName?: string;
   authorHandle?: string;
+  authorUsername?: string;
   authorAvatar?: string;
   music?: { title: string; artist: string; url: string };
   location?: { lat: number; lng: number; name: string };
@@ -1381,14 +1382,17 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     isUserPost: false,
     authorName: p.authorDisplayName || p.authorUsername || "User",
     authorHandle: p.authorUsername || "",
+    authorUsername: p.authorUsername || "",
     authorAvatar: p.authorAvatar || undefined,
     music: p.music || undefined,
     location: p.location || undefined,
   });
 
+  // Initial feed load + 30s polling for new posts from other users
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const loadInitial = async () => {
       try {
         const { posts, hasMore, nextCursor } = await api.posts.getFeed({ limit: 20 });
         if (cancelled) return;
@@ -1396,8 +1400,35 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
         setFeedHasMore(hasMore);
         setFeedNextCursor(nextCursor);
       } catch { /* offline – no-op */ }
-    })();
-    return () => { cancelled = true; };
+    };
+
+    loadInitial();
+
+    // Poll every 30 s for new posts (so friends see each other's posts automatically)
+    let pollInFlight = false;
+    const poll = setInterval(async () => {
+      if (cancelled || pollInFlight) return;
+      pollInFlight = true;
+      try {
+        const { posts } = await api.posts.getFeed({ limit: 20 });
+        if (cancelled) return;
+        const fresh = posts.map(mapApiPost);
+        setApiFeedPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newOnes = fresh.filter((p) => !existingIds.has(p.id));
+          if (newOnes.length === 0) return prev;
+          setNewPostsPill(true);
+          return [...newOnes, ...prev];
+        });
+      } catch { /* offline – no-op */ } finally {
+        pollInFlight = false;
+      }
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+    };
   }, []);
 
   const loadMorePosts = async () => {
@@ -1592,10 +1623,13 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
       } : undefined,
     };
 
-    // Save post to backend so other users can see it
+    // Optimistically add to feed immediately so the author sees it right away
+    setApiFeedPosts((prev) => [newPost, ...prev]);
+
+    // Persist to MongoDB so ALL users see it
     if (user?.username) {
       try {
-        await api.posts.create({
+        const created: any = await api.posts.create({
           authorUsername: user.username,
           authorDisplayName: user.nickname || user.username,
           authorAvatar: user.avatar,
@@ -1605,21 +1639,24 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
           music: postData.music,
           location: postData.location,
         });
+        // Replace the temp local ID with the real MongoDB ID so polling dedupes correctly
+        const realId = String(created?._id || created?.id || newPost.id);
+        if (realId !== newPost.id) {
+          setApiFeedPosts((prev) =>
+            prev.map((p) => (p.id === newPost.id ? { ...p, id: realId } : p))
+          );
+        }
       } catch (apiErr) {
         console.error("Failed to save post to backend:", apiErr);
+        // Keep optimistic post visible — author still sees it locally
       }
     }
 
     setTimeout(() => {
-      setUserPosts((p) => {
-        const updated = [newPost, ...p];
-        localStorage.setItem("reelsy_user_posts", JSON.stringify(updated));
-        return updated;
-      });
       setIsSendingPost(false);
       setPostSentFlash(true);
       setTimeout(() => setPostSentFlash(false), 2200);
-    }, 1400);
+    }, 800);
   };
 
   const AD_POST_1: PostData = {
@@ -1740,14 +1777,17 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     time: "Sponsored",
   };
 
-  // Merge user posts + real API feed + ads, deduplicated
+  // Feed = MongoDB posts only. userPosts (localStorage) retained for backward compat
+  // but new posts go into apiFeedPosts directly so every user sees them.
   const mergedFeedPosts = useMemo(() => {
     const seen = new Set<string>();
     const out: PostData[] = [];
-    for (const p of userPosts) { if (!seen.has(p.id)) { seen.add(p.id); out.push(p); } }
+    // API posts first (primary source of truth)
     for (const p of apiFeedPosts) { if (!seen.has(p.id)) { seen.add(p.id); out.push(p); } }
+    // Old localStorage posts as fallback (only if not already in API)
+    for (const p of userPosts) { if (!seen.has(p.id)) { seen.add(p.id); out.push(p); } }
     return out;
-  }, [userPosts, apiFeedPosts]);
+  }, [apiFeedPosts, userPosts]);
 
   const allPosts: PostData[] = [
     ...mergedFeedPosts.slice(0, 4),

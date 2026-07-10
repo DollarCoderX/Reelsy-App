@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { signOut as supabaseSignOut } from "@/lib/supabase-client";
+import { api } from "@/lib/api";
 
 import { AppLanguage, useAppContext } from "@/context/AppContext";
 import {
@@ -635,7 +636,14 @@ const PrivacySheet = ({ onClose }: { onClose: () => void }) => {
       transition={{ type: "spring", stiffness: 280, damping: 30 }}
       className="fixed inset-0 z-[100] bg-background flex flex-col">
       <div className="shrink-0 flex items-center justify-between px-4 pt-5 pb-3">
-        <motion.button whileTap={{ scale: 0.9 }} onClick={() => { if (user) setUser({ ...user, friendPolicy }); onClose(); }}
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => {
+          if (user) {
+            setUser({ ...user, friendPolicy });
+            // Persist to MongoDB so the backend can enforce it
+            api.users.updateSettings(user.username, { friendPolicy, callerSupabaseId: (user as any).supabaseId }).catch(() => {});
+          }
+          onClose();
+        }}
           className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
           <X className="w-4 h-4" />
         </motion.button>
@@ -644,11 +652,11 @@ const PrivacySheet = ({ onClose }: { onClose: () => void }) => {
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
         <div>
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">Friend Requests</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">Who can add & message you</p>
           <div className="bg-secondary/50 rounded-2xl overflow-hidden divide-y divide-background/60">
             {[
-              { value: "open", label: "Open to everyone", desc: "Anyone can message you directly" },
-              { value: "request-only", label: "Friends only", desc: "Others must send a friend request first" },
+              { value: "open", label: "Open to everyone", desc: "Anyone can send you friend requests and messages" },
+              { value: "request-only", label: "Friends only", desc: "Others must be your friend before chatting" },
             ].map((opt) => (
               <button key={opt.value} onClick={() => setFriendPolicy(opt.value as any)}
                 className="w-full flex items-center justify-between px-4 py-3.5 text-left">

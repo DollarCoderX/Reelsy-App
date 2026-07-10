@@ -175,17 +175,37 @@ router.get('/users/:username/stats', async (req, res) => {
 });
 
 // PATCH /api/users/:username/settings - save user privacy settings
+// Requires caller to supply their supabaseId which is verified against the stored record.
 router.patch('/users/:username/settings', async (req, res) => {
   try {
     const { username } = req.params;
-    const { friendPolicy, bio, displayName, profileImage } = req.body;
+    const { friendPolicy, bio, displayName, profileImage, callerSupabaseId } = req.body;
 
     const usersCollection = await getUsersCollection();
+
+    // Basic ownership check: callerSupabaseId must match the stored supabaseId for this username
+    const existingUser = await usersCollection.findOne({ username });
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (callerSupabaseId && (existingUser as any).supabaseId) {
+      if ((existingUser as any).supabaseId !== callerSupabaseId) {
+        return res.status(403).json({ error: 'Forbidden: identity mismatch' });
+      }
+    }
+
+    // Only update whitelisted safe fields
     const updateFields: any = { updatedAt: new Date() };
-    if (friendPolicy !== undefined) updateFields.friendPolicy = friendPolicy;
-    if (bio !== undefined) updateFields.bio = bio;
-    if (displayName !== undefined) updateFields.displayName = displayName;
-    if (profileImage !== undefined) updateFields.profileImage = profileImage;
+    if (friendPolicy !== undefined) {
+      const allowed = ['open', 'request-only'];
+      if (!allowed.includes(friendPolicy)) {
+        return res.status(400).json({ error: 'Invalid friendPolicy value' });
+      }
+      updateFields.friendPolicy = friendPolicy;
+    }
+    if (bio !== undefined) updateFields.bio = String(bio).slice(0, 500);
+    if (displayName !== undefined) updateFields.displayName = String(displayName).slice(0, 64);
+    if (profileImage !== undefined) updateFields.profileImage = String(profileImage).slice(0, 500);
 
     await usersCollection.updateOne(
       { username },
