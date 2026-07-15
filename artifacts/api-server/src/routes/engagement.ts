@@ -10,6 +10,7 @@ import {
   getPostComments,
   userLikedPost,
   userSavedPost,
+  notifyProfileView,
 } from '../lib/engagement';
 
 const router = Router();
@@ -158,15 +159,16 @@ router.post('/:postId/save', async (req, res) => {
 // Get user notifications
 router.get('/user/notifications', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, username } = req.query;
 
     if (!userId || typeof userId !== 'string') {
       return res.status(400).json({ error: 'userId is required' });
     }
 
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const usernameStr = typeof username === 'string' ? username : undefined;
 
-    const notifications = await getUserNotifications(userId, limit);
+    const notifications = await getUserNotifications(userId, limit, usernameStr);
 
     return res.status(200).json({ 
       notifications,
@@ -175,6 +177,21 @@ router.get('/user/notifications', async (req, res) => {
   } catch (error) {
     req.log.error(error, 'Error fetching notifications');
     return res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Profile view notification
+router.post('/profile-view', async (req, res) => {
+  try {
+    const { viewerUserId, viewerUsername, viewerDisplayName, viewerProfileImage, profileOwnerId, profileOwnerUsername } = req.body;
+    if (!viewerUserId || !viewerUsername || !profileOwnerId || !profileOwnerUsername) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    await notifyProfileView(viewerUserId, viewerUsername, viewerDisplayName || viewerUsername, viewerProfileImage, profileOwnerId, profileOwnerUsername);
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    // Non-fatal
+    return res.status(200).json({ ok: false });
   }
 });
 

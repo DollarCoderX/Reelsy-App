@@ -262,17 +262,41 @@ const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
     };
   };
 
-  const submitPost = () => {
+  const submitPost = async () => {
     if (!canPost || isPosting) return;
     
     setIsPosting(true);
     if (previewAudio) { previewAudio.pause(); setPreviewAudio(null); }
-    setTimeout(() => {
+
+    try {
+      // Upload any base64/blob media to the server so posts aren't stored as huge base64 strings
+      const uploadedUrls = await Promise.all(
+        mediaUrls.map(async (url) => {
+          // Already a server URL (starts with http/https) — no re-upload needed
+          if (url.startsWith('http://') || url.startsWith('https://')) return url;
+          // Convert data URL or object URL to blob then upload
+          try {
+            const blob = await fetch(url).then((r) => r.blob());
+            const ext = blob.type.split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'bin';
+            const formData = new FormData();
+            formData.append('file', blob, `upload.${ext}`);
+            const res = await fetch('/api/media/upload', { method: 'POST', body: formData });
+            if (res.ok) {
+              const { mediaUrl } = await res.json();
+              return mediaUrl as string;
+            }
+          } catch (err) {
+            console.error('Media upload failed, using local URL as fallback:', err);
+          }
+          return url; // fallback to local URL if upload fails
+        })
+      );
+
       if (audience === "Draft") {
         const newDraft = {
           id: `draft-${Date.now()}`,
           content: content.replace(/\/\/[^/]+\/\//, ""),
-          mediaUrls,
+          mediaUrls: uploadedUrls,
           mediaType,
           music: selectedMusic || undefined,
           location: attachedLocation || undefined,
@@ -282,22 +306,23 @@ const PostComposer = ({ onClose, onPost, resharePost }: PostComposerProps) => {
         const existing = localStorage.getItem("reelsy_drafts");
         const drafts = existing ? JSON.parse(existing) : [];
         localStorage.setItem("reelsy_drafts", JSON.stringify([newDraft, ...drafts]));
-        setIsPosting(false);
-        onClose();
       } else {
         const finalContent = content.replace(/\/\/[^/]+\/\//, "").trim();
         onPost({
           type: mediaType || "text",
           content: finalContent,
-          media: mediaUrls.length > 0 ? (mediaType === "video" ? mediaUrls[0] : mediaUrls) : undefined,
+          media: uploadedUrls.length > 0 ? (mediaType === "video" ? uploadedUrls[0] : uploadedUrls) : undefined,
           music: selectedMusic || undefined,
           location: attachedLocation || undefined,
           aiGenerated: aiUsed
         });
-        setIsPosting(false);
-        onClose();
       }
-    }, 700);
+    } catch (err) {
+      console.error('Error submitting post:', err);
+    } finally {
+      setIsPosting(false);
+      onClose();
+    }
   };
 
   const handlePost = () => {

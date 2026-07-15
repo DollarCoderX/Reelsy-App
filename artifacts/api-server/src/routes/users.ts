@@ -179,7 +179,7 @@ router.get('/users/:username/stats', async (req, res) => {
 router.patch('/users/:username/settings', async (req, res) => {
   try {
     const { username } = req.params;
-    const { friendPolicy, bio, displayName, profileImage, callerSupabaseId } = req.body;
+    const { friendPolicy, messagingPolicy, bio, displayName, profileImage, callerSupabaseId } = req.body;
 
     const usersCollection = await getUsersCollection();
 
@@ -202,6 +202,13 @@ router.patch('/users/:username/settings', async (req, res) => {
         return res.status(400).json({ error: 'Invalid friendPolicy value' });
       }
       updateFields.friendPolicy = friendPolicy;
+    }
+    if (messagingPolicy !== undefined) {
+      const allowed = ['everyone', 'friends-only'];
+      if (!allowed.includes(messagingPolicy)) {
+        return res.status(400).json({ error: 'Invalid messagingPolicy value' });
+      }
+      updateFields.messagingPolicy = messagingPolicy;
     }
     if (bio !== undefined) updateFields.bio = String(bio).slice(0, 500);
     if (displayName !== undefined) updateFields.displayName = String(displayName).slice(0, 64);

@@ -27,6 +27,9 @@ import { api, UserProfile as ApiUserProfile } from "@/lib/api";
 import { useFriends } from "@/hooks/useFriends";
 import { useAppContext } from "@/context/AppContext";
 
+// Track which profiles were viewed this session to avoid duplicate notifications
+const viewedThisSession = new Set<string>();
+
 interface UserProfileProps {
   bot?: Bot | null;
   realUser?: ApiUserProfile | null;
@@ -108,6 +111,19 @@ const RealUserProfileView = ({
     api.users.getStats(realUser.username)
       .then((data) => setStats(data))
       .catch(() => {});
+
+    // Fire profile_view notification (once per session per profile, not for own profile)
+    if (!isMe && me?.supabaseId && realUser.supabaseId && !viewedThisSession.has(realUser.username)) {
+      viewedThisSession.add(realUser.username);
+      api.engagement.notifyProfileView({
+        viewerUserId: me.supabaseId,
+        viewerUsername: me.username || '',
+        viewerDisplayName: me.nickname || me.username || '',
+        viewerProfileImage: me.avatar || undefined,
+        profileOwnerId: realUser.supabaseId,
+        profileOwnerUsername: realUser.username,
+      }).catch(() => {});
+    }
   }, [realUser.username]);
 
   const handleFriendAction = async () => {

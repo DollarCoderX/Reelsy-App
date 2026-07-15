@@ -1,5 +1,6 @@
 import { Collection, ObjectId } from 'mongodb';
-import { connectMongoDB } from './mongodb';
+import { connectMongoDB, getUsersCollection } from './mongodb';
+import { broadcastNotification } from './supabase';
 
 export interface Post {
   _id?: ObjectId;
@@ -39,13 +40,13 @@ export interface Engagement {
 
 export interface Notification {
   _id?: ObjectId;
-  userId: string; // Post owner receiving notification
+  userId: string; // Recipient's userId (supabaseId preferred)
   fromUserId: string;
   fromUsername: string;
   fromDisplayName: string;
   fromProfileImage?: string;
-  type: 'like' | 'comment' | 'reshare' | 'save';
-  postId: ObjectId;
+  type: 'like' | 'comment' | 'reshare' | 'save' | 'profile_view';
+  postId?: ObjectId;
   postPreview?: string;
   commentText?: string;
   read: boolean;
@@ -126,18 +127,20 @@ export async function likePost(postId: string, userId: string, username: string,
     // Create notification
     if (post.userId !== userId) {
       const notificationsCollection = await getNotificationsCollection();
-      await notificationsCollection.insertOne({
+      const notif = {
         userId: post.userId,
         fromUserId: userId,
         fromUsername: username,
         fromDisplayName: displayName,
         fromProfileImage: profileImage,
-        type: 'like',
+        type: 'like' as const,
         postId: objectId,
         postPreview: post.content.slice(0, 100),
         read: false,
         createdAt: new Date(),
-      });
+      };
+      const inserted = await notificationsCollection.insertOne(notif);
+      broadcastNotification({ ...notif, _id: inserted.insertedId.toString(), postId: objectId.toString(), createdAt: notif.createdAt.toISOString() }).catch(() => {});
     }
     
     return { success: true, likeCount: post.engagementCounts.likes + 1 };
@@ -206,19 +209,21 @@ export async function addComment(postId: string, userId: string, username: strin
     // Create notification
     if (post.userId !== userId) {
       const notificationsCollection = await getNotificationsCollection();
-      await notificationsCollection.insertOne({
+      const notif = {
         userId: post.userId,
         fromUserId: userId,
         fromUsername: username,
         fromDisplayName: displayName,
         fromProfileImage: profileImage,
-        type: 'comment',
+        type: 'comment' as const,
         postId: objectId,
         postPreview: post.content.slice(0, 100),
         commentText: text.slice(0, 200),
         read: false,
         createdAt: new Date(),
-      });
+      };
+      const inserted = await notificationsCollection.insertOne(notif);
+      broadcastNotification({ ...notif, _id: inserted.insertedId.toString(), postId: objectId.toString(), createdAt: notif.createdAt.toISOString() }).catch(() => {});
     }
     
     return { success: true, commentCount: post.engagementCounts.comments + 1, commentId: result.insertedId.toString() };
@@ -277,18 +282,20 @@ export async function resharePost(postId: string, userId: string, username: stri
     // Create notification
     if (post.userId !== userId) {
       const notificationsCollection = await getNotificationsCollection();
-      await notificationsCollection.insertOne({
+      const notif = {
         userId: post.userId,
         fromUserId: userId,
         fromUsername: username,
         fromDisplayName: displayName,
         fromProfileImage: profileImage,
-        type: 'reshare',
+        type: 'reshare' as const,
         postId: objectId,
         postPreview: post.content.slice(0, 100),
         read: false,
         createdAt: new Date(),
-      });
+      };
+      const inserted = await notificationsCollection.insertOne(notif);
+      broadcastNotification({ ...notif, _id: inserted.insertedId.toString(), postId: objectId.toString(), createdAt: notif.createdAt.toISOString() }).catch(() => {});
     }
     
     return { success: true, reshareCount: post.engagementCounts.reshares + 1 };
@@ -341,14 +348,62 @@ export async function savePost(postId: string, userId: string, username: string,
 }
 
 // Helper: Get user notifications
-export async function getUserNotifications(userId: string, limit: number = 20): Promise<Notification[]> {
+// Accepts username as fallback for cases where userId stored as _id string instead of supabaseId
+export async function getUserNotifications(userId: string, limit: number = 20, username?: string): Promise<Notification[]> {
   const notificationsCollection = await getNotificationsCollection();
-  
+  const query = username
+    ? { $or: [{ userId }, { userId: username }] }
+    : { userId };
   return notificationsCollection
-    .find({ userId })
+    .find(query as any)
     .sort({ createdAt: -1 })
     .limit(limit)
     .toArray();
+}
+
+// Helper: Create a profile_view notification (throttled: once per viewer per profile per day)
+export async function notifyProfileView(
+  viewerUserId: string,
+  viewerUsername: string,
+  viewerDisplayName: string,
+  viewerProfileImage: string | undefined,
+  profileOwnerId: string,
+  profileOwnerUsername: string
+): Promise<void> {
+  if (viewerUserId === profileOwnerId || viewerUsername === profileOwnerUsername) return;
+
+  // Resolve the profile owner's supabaseId so the notification matches polling userId
+  let realOwnerId = profileOwnerId;
+  try {
+    const usersCol = await getUsersCollection();
+    const owner = await usersCol.findOne({ username: profileOwnerUsername });
+    if (owner) realOwnerId = (owner as any).supabaseId || owner._id?.toString() || profileOwnerId;
+  } catch {}
+
+  const notificationsCollection = await getNotificationsCollection();
+
+  // Throttle: only one profile_view notification per viewer+owner per 24 h
+  const oneDayAgo = new Date(Date.now() - 86400000);
+  const recent = await notificationsCollection.findOne({
+    userId: realOwnerId,
+    fromUserId: viewerUserId,
+    type: 'profile_view',
+    createdAt: { $gte: oneDayAgo },
+  });
+  if (recent) return; // already notified recently
+
+  const notif = {
+    userId: realOwnerId,
+    fromUserId: viewerUserId,
+    fromUsername: viewerUsername,
+    fromDisplayName: viewerDisplayName,
+    fromProfileImage: viewerProfileImage,
+    type: 'profile_view' as const,
+    read: false,
+    createdAt: new Date(),
+  };
+  const inserted = await notificationsCollection.insertOne(notif as any);
+  broadcastNotification({ ...notif, _id: inserted.insertedId.toString(), createdAt: notif.createdAt.toISOString() }).catch(() => {});
 }
 
 // Helper: Mark notification as read

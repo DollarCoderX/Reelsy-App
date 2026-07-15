@@ -28,9 +28,11 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export const NotificationProvider = ({
   children,
   userId,
+  username,
 }: {
   children: ReactNode;
   userId?: string;
+  username?: string;
 }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -42,13 +44,13 @@ export const NotificationProvider = ({
     if (!userId) return;
     try {
       const { notifications: notifs, unreadCount: count } =
-        await api.engagement.getNotifications(userId, 40);
+        await api.engagement.getNotifications(userId, 40, username);
       setNotifications(notifs);
       setUnreadCount(count);
     } catch {
       // Silently fail if API not running
     }
-  }, [userId]);
+  }, [userId, username]);
 
   const markRead = useCallback(
     async (id: string) => {

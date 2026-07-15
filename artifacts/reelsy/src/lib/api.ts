@@ -136,11 +136,17 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
-    getNotifications: (userId: string, limit = 30) =>
+    getNotifications: (userId: string, limit = 30, username?: string) =>
       request<{ notifications: AppNotification[]; unreadCount: number }>(
         '/engagement/user/notifications',
-        { query: { userId, limit } }
+        { query: { userId, limit, ...(username ? { username } : {}) } }
       ),
+
+    notifyProfileView: (data: {
+      viewerUserId: string; viewerUsername: string; viewerDisplayName?: string;
+      viewerProfileImage?: string; profileOwnerId: string; profileOwnerUsername: string;
+    }) =>
+      request<{ ok: boolean }>('/engagement/profile-view', { method: 'POST', body: JSON.stringify(data) }),
 
     markRead: (notificationId: string) =>
       request<{ message: string }>(`/engagement/notifications/${notificationId}/read`, {
@@ -252,6 +258,20 @@ export const api = {
   },
 };
 
+// ─── Media upload helper ──────────────────────────────────────────────────────
+export async function uploadMedia(file: Blob, filename = 'upload'): Promise<string | null> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file, filename);
+    const res = await fetch('/api/media/upload', { method: 'POST', body: formData });
+    if (!res.ok) return null;
+    const { mediaUrl } = await res.json();
+    return mediaUrl as string;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Post {
@@ -311,7 +331,7 @@ export interface AppNotification {
   fromUsername: string;
   fromDisplayName: string;
   fromProfileImage?: string;
-  type: 'like' | 'comment' | 'reshare' | 'save' | 'friend_request' | 'friend_accepted';
+  type: 'like' | 'comment' | 'reshare' | 'save' | 'friend_request' | 'friend_accepted' | 'profile_view';
   postId?: string;
   requestId?: string;
   postPreview?: string;

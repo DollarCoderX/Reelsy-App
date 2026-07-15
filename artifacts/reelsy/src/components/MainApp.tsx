@@ -498,9 +498,10 @@ const MainAppInner = () => {
 const MainApp = () => {
   const { user } = useAppContext();
   const userId = user?.supabaseId || user?.username || undefined;
+  const username = user?.username || undefined;
 
   return (
-    <NotificationProvider userId={userId}>
+    <NotificationProvider userId={userId} username={username}>
       <MainAppInner />
       <NotificationToast />
     </NotificationProvider>

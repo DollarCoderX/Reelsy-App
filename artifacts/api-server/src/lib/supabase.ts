@@ -403,6 +403,25 @@ export async function banUserViaAdmin(
  * Confirm a user's email in Supabase to prevent auto-ban for unconfirmed emails.
  * Called after Google OAuth signup since Google already verified the email.
  */
+/**
+ * Broadcast a notification to a user's realtime channel for instant delivery.
+ * Non-fatal: if Supabase isn't ready, the client will pick it up via 30-second polling.
+ */
+export async function broadcastNotification(notification: Record<string, any>): Promise<void> {
+  try {
+    const client = getSupabaseClient();
+    const channel = client.channel(`notifications:${notification.userId}`);
+    await channel.send({
+      type: 'broadcast',
+      event: 'notification',
+      payload: notification,
+    });
+    await client.removeChannel(channel);
+  } catch (error) {
+    console.warn('broadcastNotification failed (non-fatal):', error);
+  }
+}
+
 export async function confirmUserEmail(supabaseUserId: string): Promise<boolean> {
   try {
     const client = getSupabaseClient();

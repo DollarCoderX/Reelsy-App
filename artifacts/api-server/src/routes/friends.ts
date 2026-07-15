@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ObjectId } from 'mongodb';
 import { getMongoDBCollection, getUsersCollection } from '../lib/mongodb';
+import { broadcastNotification } from '../lib/supabase';
 
 const router = Router();
 
@@ -89,7 +90,7 @@ router.post('/friends/request', async (req, res) => {
 
     // Create notification for recipient
     const notifCol = await getNotificationsCollection();
-    await notifCol.insertOne({
+    const notif = {
       userId: toUserId,
       fromUserId,
       fromUsername,
@@ -99,7 +100,10 @@ router.post('/friends/request', async (req, res) => {
       requestId: result.insertedId,
       read: false,
       createdAt: new Date(),
-    });
+    };
+    const notifResult = await notifCol.insertOne(notif);
+    // Broadcast instantly via Supabase Realtime
+    broadcastNotification({ ...notif, _id: notifResult.insertedId.toString(), requestId: result.insertedId.toString(), createdAt: notif.createdAt.toISOString() }).catch(() => {});
 
     return res.status(201).json({ requestId: result.insertedId, message: 'Friend request sent' });
   } catch (error) {
@@ -148,7 +152,7 @@ router.put('/friends/request/:id/accept', async (req, res) => {
 
     // Notify the original sender
     const notifCol = await getNotificationsCollection();
-    await notifCol.insertOne({
+    const acceptNotif = {
       userId: request.fromUserId,
       fromUserId: request.toUserId,
       fromUsername: request.toUsername,
@@ -157,7 +161,9 @@ router.put('/friends/request/:id/accept', async (req, res) => {
       requestId: new ObjectId(id),
       read: false,
       createdAt: new Date(),
-    });
+    };
+    const acceptResult = await notifCol.insertOne(acceptNotif);
+    broadcastNotification({ ...acceptNotif, _id: acceptResult.insertedId.toString(), requestId: id, createdAt: acceptNotif.createdAt.toISOString() }).catch(() => {});
 
     // Mark original friend_request notification as read
     await notifCol.updateOne(
