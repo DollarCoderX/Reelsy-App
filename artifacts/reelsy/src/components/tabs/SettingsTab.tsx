@@ -628,6 +628,7 @@ const EditProfileSheet = ({ onClose }: { onClose: () => void }) => {
 const PrivacySheet = ({ onClose }: { onClose: () => void }) => {
   const { user, setUser } = useAppContext();
   const [friendPolicy, setFriendPolicy] = useState<"open" | "request-only">(user?.friendPolicy || "request-only");
+  const [messagingPolicy, setMessagingPolicy] = useState<"everyone" | "friends-only">((user as any)?.messagingPolicy || "friends-only");
   const [showActivity, setShowActivity] = useState(true);
   const [showOnline, setShowOnline] = useState(true);
 
@@ -639,8 +640,11 @@ const PrivacySheet = ({ onClose }: { onClose: () => void }) => {
         <motion.button whileTap={{ scale: 0.9 }} onClick={() => {
           if (user) {
             setUser({ ...user, friendPolicy });
-            // Persist to MongoDB so the backend can enforce it
-            api.users.updateSettings(user.username, { friendPolicy, callerSupabaseId: (user as any).supabaseId }).catch(() => {});
+            api.users.updateSettings(user.username, {
+              friendPolicy,
+              messagingPolicy,
+              callerSupabaseId: (user as any).supabaseId,
+            }).catch(() => {});
           }
           onClose();
         }}
@@ -651,12 +655,14 @@ const PrivacySheet = ({ onClose }: { onClose: () => void }) => {
         <div className="w-9" />
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
+
+        {/* Friend requests */}
         <div>
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">Who can add & message you</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">Who can add you as a friend</p>
           <div className="bg-secondary/50 rounded-2xl overflow-hidden divide-y divide-background/60">
             {[
-              { value: "open", label: "Open to everyone", desc: "Anyone can send you friend requests and messages" },
-              { value: "request-only", label: "Friends only", desc: "Others must be your friend before chatting" },
+              { value: "open", label: "Everyone", desc: "Anyone can send you a friend request" },
+              { value: "request-only", label: "Restricted", desc: "Manage who can send you requests" },
             ].map((opt) => (
               <button key={opt.value} onClick={() => setFriendPolicy(opt.value as any)}
                 className="w-full flex items-center justify-between px-4 py-3.5 text-left">
@@ -665,6 +671,26 @@ const PrivacySheet = ({ onClose }: { onClose: () => void }) => {
                   <p className="text-muted-foreground text-[11px]">{opt.desc}</p>
                 </div>
                 {friendPolicy === opt.value && <Check className="w-4 h-4" strokeWidth={2.5} />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Direct messaging */}
+        <div>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">Who can message you</p>
+          <div className="bg-secondary/50 rounded-2xl overflow-hidden divide-y divide-background/60">
+            {[
+              { value: "everyone", label: "Anyone can message me", desc: "People can DM you without being friends first" },
+              { value: "friends-only", label: "Friends only", desc: "Must accept friend request before they can DM you" },
+            ].map((opt) => (
+              <button key={opt.value} onClick={() => setMessagingPolicy(opt.value as any)}
+                className="w-full flex items-center justify-between px-4 py-3.5 text-left">
+                <div>
+                  <p className="font-medium text-[13px]">{opt.label}</p>
+                  <p className="text-muted-foreground text-[11px]">{opt.desc}</p>
+                </div>
+                {messagingPolicy === opt.value && <Check className="w-4 h-4" strokeWidth={2.5} />}
               </button>
             ))}
           </div>

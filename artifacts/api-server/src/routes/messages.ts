@@ -73,8 +73,11 @@ router.post('/messages/conversations', async (req, res) => {
     const { getUsersCollection } = await import('../lib/mongodb');
     const usersCollection = await getUsersCollection();
     const targetUser = await usersCollection.findOne({ username: otherUsername });
-    if (targetUser && (targetUser as any).friendPolicy === 'request-only') {
-      // Target requires friends-only — verify friendship before proceeding
+    // Check messaging policy: messagingPolicy takes precedence; fall back to friendPolicy for legacy
+    const msgPolicy: string = (targetUser as any).messagingPolicy ||
+      ((targetUser as any).friendPolicy === 'request-only' ? 'friends-only' : 'everyone');
+    if (targetUser && msgPolicy === 'friends-only') {
+      // Target requires friends-only messaging — verify friendship
       const { getMongoDBCollection } = await import('../lib/mongodb');
       const friendsCollection = await getMongoDBCollection('friends');
       const areFriends = await friendsCollection.findOne({

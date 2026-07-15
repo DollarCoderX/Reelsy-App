@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { fetch as undiciFetch } from "undici";
+// Use Node 20 native fetch (no undici needed)
 
 const router: IRouter = Router();
 
@@ -15,7 +15,7 @@ router.post("/groq", async (req, res) => {
       return res.status(400).json({ error: "prompt is required" });
     }
 
-    const groqRes = await undiciFetch("https://api.groq.com/openai/v1/chat/completions", {
+    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

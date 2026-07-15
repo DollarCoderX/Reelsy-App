@@ -23,7 +23,8 @@
     "nodemailer": "^8.0.7",
     "pino": "^9",
     "pino-http": "^10",
-    "undici": "^8.3.0"
+    "undici": "^8.3.0",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
@@ -31,6 +32,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "@types/nodemailer": "^8.0.0",
+    "@types/ws": "^8.18.1",
     "esbuild": "^0.27.3",
     "esbuild-plugin-pino": "^2.3.3",
     "pino-pretty": "^13",

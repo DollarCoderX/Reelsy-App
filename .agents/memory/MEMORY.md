@@ -3,3 +3,7 @@
 - [Supabase realtime DMs](supabase-realtime.md) — useMessages hook has full realtime subscription wired; useConversations also has Postgres CDC subscription
 - [Google OAuth email confirm](google-oauth-email.md) — must call confirmUserEmail(supabaseId) after new Google signup or Supabase auto-bans for unconfirmed email; ensureSupabaseInitialized must be awaited first
 - [Post visibility](post-visibility.md) — posts were only saved to localStorage; api.posts.create() must be called in handleNewPost to persist to MongoDB for other users to see
+- [Supabase Node 20 WebSocket](supabase-node20-ws.md) — Supabase Realtime crashes on Node 20 without ws package; must pass `realtime: { transport: ws }` to createClient; ws package must be installed
+- [Notification broadcast](notification-broadcast.md) — broadcastNotification() in supabase.ts sends instant push; all notification creation sites must call it after MongoDB insert; non-fatal if Supabase not ready
+- [Media storage](media-storage.md) — media.ts uses Supabase Storage bucket "media" (public); multer memoryStorage + upload buffer; PostComposer uploads base64/blob URLs before posting
+- [Messaging vs friend policy](messaging-policy.md) — messagingPolicy (everyone/friends-only) is separate from friendPolicy (open/request-only); messages.ts checks messagingPolicy with fallback to friendPolicy for legacy users

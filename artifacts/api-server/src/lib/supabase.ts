@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 import { getUsersCollection } from './mongodb';
 
 let supabaseClient: any = null;
@@ -25,7 +26,9 @@ export async function initSupabase() {
   }
 
   try {
-    supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+      realtime: { transport: ws },
+    });
     console.log('Connected to Supabase');
     
     // Initialize database schema
