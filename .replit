@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-20", "web", "bash"]
 
 [deployment]
 router = "application"
@@ -76,3 +76,6 @@ API_PORT = "3000"
 MONGODB_DB = "reelsy"
 LOG_LEVEL = "info"
 NODE_ENV = "development"
+
+[nix]
+channel = "stable-25_05"
