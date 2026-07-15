@@ -1,14 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppContext } from "@/context/AppContext";
 import { ChevronLeft, Camera, Check, AlertCircle, RotateCcw } from "lucide-react";
 import AvatarCustomizer from "./AvatarCustomizer";
 
-// Mock taken usernames database
-const TAKEN_USERNAMES = new Set([
-  "daniel", "john", "jane", "admin", "user", "test", "alex", "mike",
-  "sarah", "emma", "david", "sophia", "james", "olivia", "robert",
-  "reelsy", "official", "support", "help", "contact", "info"
+// Reserved usernames that can't be registered
+const RESERVED_USERNAMES = new Set([
+  "admin", "support", "help", "official", "reelsy", "whales", "bot", "info", "contact", "root", "system"
 ]);
 
 const AvatarDisplay = ({ src, className }: { src: string; className: string }) =>
@@ -18,24 +16,12 @@ const AvatarDisplay = ({ src, className }: { src: string; className: string }) =
     <img src={src} alt="avatar" className={`${className} object-cover`} />
   );
 
-const generateSuggestions = (baseUsername: string): string[] => {
-  const suggestions: string[] = [];
-  const base = baseUsername.toLowerCase();
-  
-  // Suggestion 1: Add random numbers
-  const randomNum1 = Math.floor(Math.random() * 1000);
-  suggestions.push(`${base}${randomNum1}`);
-  
-  // Suggestion 2: Add different random numbers
-  const randomNum2 = Math.floor(Math.random() * 1000);
-  suggestions.push(`${base}${randomNum2}`);
-  
-  // Suggestion 3: Add word variation or numbers
-  const randomNum3 = Math.floor(Math.random() * 9000) + 100;
-  suggestions.push(`${base}${randomNum3}`);
-  
-  return suggestions.filter(s => !TAKEN_USERNAMES.has(s));
-};
+// Fallback suggestions when API isn't available
+const fallbackSuggestions = (base: string): string[] => [
+  `${base}${Math.floor(Math.random() * 999) + 1}`,
+  `${base}_real`,
+  `the_${base}`,
+];
 
 const AuthProfile = () => {
   const { setAppPhase, setUser, authEmail } = useAppContext();
@@ -46,33 +32,47 @@ const AuthProfile = () => {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
-  // Check username availability
+  // Check username availability against real MongoDB via API (debounced 600ms)
   useEffect(() => {
-    if (!username.trim()) {
-      setIsAvailable(null);
-      setSuggestions([]);
-      return;
-    }
+    if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+    const clean = username.trim().toLowerCase().replace(/^@/, "");
+    if (!clean) { setIsAvailable(null); setSuggestions([]); return; }
 
-    const cleanUsername = username.toLowerCase().replace(/^@/, "");
-    const isTaken = TAKEN_USERNAMES.has(cleanUsername);
-
-    if (isTaken) {
-      setIsAvailable(false);
-      setSuggestions(generateSuggestions(cleanUsername));
-    } else {
-      setIsAvailable(true);
-      setSuggestions([]);
-    }
+    setIsChecking(true);
+    checkTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/users/username-check?username=${encodeURIComponent(clean)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setIsAvailable(data.available);
+          setSuggestions(data.suggestions || []);
+        } else {
+          // API not reachable — check reserved only
+          setIsAvailable(!RESERVED_USERNAMES.has(clean));
+          setSuggestions(RESERVED_USERNAMES.has(clean) ? fallbackSuggestions(clean) : []);
+        }
+      } catch {
+        setIsAvailable(!RESERVED_USERNAMES.has(clean));
+        setSuggestions(RESERVED_USERNAMES.has(clean) ? fallbackSuggestions(clean) : []);
+      } finally {
+        setIsChecking(false);
+      }
+    }, 600);
+    return () => { if (checkTimerRef.current) clearTimeout(checkTimerRef.current); };
   }, [username]);
 
-  const handleRefreshSuggestions = () => {
-    const cleanUsername = username.toLowerCase().replace(/^@/, "");
-    setSuggestions(generateSuggestions(cleanUsername));
+  const handleRefreshSuggestions = async () => {
+    const clean = username.toLowerCase().replace(/^@/, "");
+    try {
+      const res = await fetch(`/api/users/username-check?username=${encodeURIComponent(clean)}`);
+      if (res.ok) setSuggestions((await res.json()).suggestions || fallbackSuggestions(clean));
+    } catch { setSuggestions(fallbackSuggestions(clean)); }
   };
 
   const handleSelectSuggestion = (suggestion: string) => {
@@ -81,21 +81,17 @@ const AuthProfile = () => {
 
   const handleNext = () => {
     if (!username || !nickname || !age) return;
-    
-    // Check if username is available before proceeding
-    const cleanUsername = username.toLowerCase().replace(/^@/, "");
-    if (TAKEN_USERNAMES.has(cleanUsername)) {
-      showToast("❌ This username is already taken. Please choose another one.");
+    if (isChecking) { showToast("Still checking username…"); return; }
+    if (isAvailable !== true) {
+      showToast("❌ Username is taken. Please choose another one.");
       return;
     }
-    
     const ageNum = parseInt(age);
-    // Age is saved strictly - no restrictions, system will use this for content filtering
     setUser({ username: username.startsWith("@") ? username : `@${username}`, nickname, age: ageNum, avatar });
     setAppPhase("auth-interests");
   };
 
-  const canProceed = !!username.trim() && !!nickname.trim() && !!age && isAvailable === true;
+  const canProceed = !!username.trim() && !!nickname.trim() && !!age && isAvailable === true && !isChecking;
 
   return (
     <>
@@ -157,26 +153,22 @@ const AuthProfile = () => {
 
               {/* Status Message */}
               <AnimatePresence mode="wait">
-                {username.trim() && isAvailable !== null && (
+                {username.trim() && (isChecking || isAvailable !== null) && (
                   <motion.div 
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.25 }}
                     className={`flex items-center gap-2 text-[12px] font-medium px-1 ${
-                      isAvailable ? "text-green-500" : "text-red-500"
+                      isChecking ? "text-muted-foreground" : isAvailable ? "text-green-500" : "text-red-500"
                     }`}
                   >
-                    {isAvailable ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        <span>Username available</span>
-                      </>
+                    {isChecking ? (
+                      <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" /><span>Checking…</span></>
+                    ) : isAvailable ? (
+                      <><Check className="w-4 h-4" /><span>Username available</span></>
                     ) : (
-                      <>
-                        <AlertCircle className="w-4 h-4" />
-                        <span>Username already taken</span>
-                      </>
+                      <><AlertCircle className="w-4 h-4" /><span>Username already taken</span></>
                     )}
                   </motion.div>
                 )}

@@ -1,4 +1,40 @@
 import { Router } from 'express';
+
+async function generateHelpResponse(userMessage: string): Promise<string> {
+  if (!process.env.GROQ_API_KEY) {
+    return "Hi! I'm the Reelsy Help Center 🐋. I can help with account issues, how-to questions, and app features. (AI responses require GROQ_API_KEY to be configured.)";
+  }
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: 'llama3-8b-8192',
+        messages: [
+          {
+            role: 'system',
+            content: `You are Whales, the Reelsy Help Center assistant 🐋. Reelsy is a social media app with posts, reels, stories, direct messages, notifications, and friend requests. 
+You help users with:
+- Account setup, login, and profile issues
+- How to post, comment, like, share
+- Privacy settings and messaging policies  
+- Friend requests and notifications
+- App features and troubleshooting
+
+Be friendly, concise (2-3 sentences max), and helpful. Use occasional emojis. If you don't know something specific, direct them to support@reelsy.app.`,
+          },
+          { role: 'user', content: userMessage },
+        ],
+        max_tokens: 200,
+        temperature: 0.7,
+      }),
+    });
+    const j = await r.json() as any;
+    return j.choices?.[0]?.message?.content?.trim() || "I'm here to help! Could you tell me more about your issue? 🐋";
+  } catch {
+    return "I'm here to help with anything Reelsy-related! 🐋 Could you be more specific about what you need?";
+  }
+}
 import { initSupabase } from '../lib/supabase';
 
 const router = Router();
@@ -259,6 +295,40 @@ router.post('/messages/conversations/:id/send', async (req, res) => {
         updated_at: msg.created_at,
       })
       .eq('id', id);
+
+    // ── Whales Help Center auto-response ──────────────────────────────────────
+    // Run after the response so the user gets an immediate ack
+    setImmediate(async () => {
+      try {
+        const { data: parts } = await sb
+          .from('conversation_participants')
+          .select('user_id, username')
+          .eq('conversation_id', id);
+        const whalesP = (parts || []).find((p: any) => p.username === 'whales');
+        if (!whalesP || senderId === whalesP.user_id) return;
+
+        await new Promise((r) => setTimeout(r, 1400));
+
+        const aiReply = await generateHelpResponse(content);
+
+        const { data: reply } = await sb.from('messages').insert({
+          conversation_id: id,
+          sender_id: whalesP.user_id,
+          sender_username: 'whales',
+          sender_avatar: null,
+          content: aiReply,
+          message_type: 'text',
+          read_by: [whalesP.user_id],
+        }).select().single();
+
+        if (reply) {
+          await sb.from('conversations').update({
+            last_message_at: reply.created_at,
+            last_message_preview: aiReply.slice(0, 80),
+          }).eq('id', id);
+        }
+      } catch (e) { /* non-fatal */ }
+    });
 
     return res.status(201).json({ message: msg });
   } catch (error) {

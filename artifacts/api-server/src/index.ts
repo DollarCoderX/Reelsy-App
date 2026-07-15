@@ -17,11 +17,14 @@ console.log('SUPABASE_SERVICE_KEY:', process.env.SUPABASE_SERVICE_KEY ? '✅ Set
 import app from "./app";
 import { logger } from "./lib/logger";
 import { initSupabase } from "./lib/supabase";
+import { seedHelpCenterBot } from "./lib/seed";
 
 // Initialise Supabase eagerly so auth + messaging routes are ready
-initSupabase().catch((err) => {
-  logger.warn({ err }, "Supabase init failed – some features may be degraded");
-});
+initSupabase()
+  .then(() => seedHelpCenterBot())
+  .catch((err) => {
+    logger.warn({ err }, "Supabase init failed – some features may be degraded");
+  });
 
 const rawPort = process.env["PORT"];
 

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppContext } from "@/context/AppContext";
-import { ChevronLeft, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
+import { ChevronLeft, Eye, EyeOff, Loader2, Lock, User } from "lucide-react";
 import { signInWithGoogle } from "@/lib/supabase-client";
 
 const AuthLogin = () => {
   const { setAppPhase, setUser } = useAppContext();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState(""); // email, @username, or phone
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -15,11 +15,10 @@ const AuthLogin = () => {
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 3000);
+    setTimeout(() => setToast(""), 3500);
   };
 
-  const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-  const canSubmit = isValidEmail(email) && password.length >= 1;
+  const canSubmit = identifier.trim().length >= 2 && password.length >= 1;
 
   const handleLogin = async () => {
     if (!canSubmit || isLoading) return;
@@ -28,21 +27,20 @@ const AuthLogin = () => {
       const res = await fetch("/api/auth/signin-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier: identifier.trim(), password }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.error === "EMAIL_NOT_REGISTERED") {
-          showToast("No account found with this email");
-        } else if (data.error === "INVALID_PASSWORD") {
-          showToast("Incorrect password");
-        } else if (data.error === "INVALID_AUTH_METHOD") {
-          showToast("This account uses Google Sign-In");
-        } else {
-          showToast(data.message || "Login failed, try again");
-        }
+        const messages: Record<string, string> = {
+          EMAIL_NOT_REGISTERED: "No account found with this email",
+          PHONE_NOT_REGISTERED: "No account found with this phone number",
+          USERNAME_NOT_FOUND: "No account found with this username",
+          INVALID_PASSWORD: "Incorrect password",
+          INVALID_AUTH_METHOD: "This account uses Google Sign-In — tap the Google button instead",
+        };
+        showToast(messages[data.error] || data.message || "Sign-in failed, try again");
         return;
       }
 
@@ -53,8 +51,10 @@ const AuthLogin = () => {
         age: data.user.age || 0,
         email: data.user.email,
         avatar: data.user.profileImage || undefined,
+        supabaseId: data.user.supabaseId,
         isBanned: data.user.isBanned || false,
         isSuspended: data.user.isSuspended || false,
+        friendPolicy: data.user.friendPolicy,
       });
       setAppPhase("main");
     } catch {
@@ -74,6 +74,15 @@ const AuthLogin = () => {
     }
   };
 
+  // Determine placeholder hint based on input
+  const getPlaceholder = () => {
+    const v = identifier.trim();
+    if (!v) return "Email, @username, or phone";
+    if (v.startsWith("+") || /^\d/.test(v)) return "Phone number";
+    if (v.includes("@") && v.includes(".")) return "Email address";
+    return "Username";
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}
@@ -91,7 +100,7 @@ const AuthLogin = () => {
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }} className="mb-7">
           <h1 className="text-[26px] font-bold tracking-tight leading-tight">Welcome back</h1>
-          <p className="mt-1.5 text-[13px] text-muted-foreground">Sign in to your account</p>
+          <p className="mt-1.5 text-[13px] text-muted-foreground">Sign in with email, @username, or phone</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
@@ -121,16 +130,21 @@ const AuthLogin = () => {
             <div className="flex-1 h-px bg-secondary/60" />
           </div>
 
-          {/* Email */}
+          {/* Identifier field — email / @username / phone */}
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <Mail className="w-5 h-5" />
+              <User className="w-5 h-5" />
             </div>
-            <input type="email" placeholder="Email address" value={email}
-              onChange={(e) => setEmail(e.target.value)}
+            <input
+              type="text"
+              placeholder={getPlaceholder()}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+              autoComplete="username"
               style={{ fontSize: 16 }}
-              className="w-full h-[52px] pl-12 pr-4 bg-secondary rounded-2xl font-medium outline-none" />
+              className="w-full h-[52px] pl-12 pr-4 bg-secondary rounded-2xl font-medium outline-none"
+            />
           </div>
 
           {/* Password */}
@@ -174,7 +188,7 @@ const AuthLogin = () => {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-foreground text-background px-5 py-2.5 rounded-full text-[12px] font-medium shadow-lg z-40 whitespace-nowrap">
+            className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-foreground text-background px-5 py-2.5 rounded-full text-[12px] font-medium shadow-lg z-40 whitespace-nowrap max-w-[90vw] text-center">
             {toast}
           </motion.div>
         )}
