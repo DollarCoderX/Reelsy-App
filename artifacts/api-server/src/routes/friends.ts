@@ -1,36 +1,38 @@
+/**
+ * Friend requests and friendships — backed entirely by Supabase tables.
+ * MongoDB is used only to look up user info (username → supabaseId, displayName, etc.)
+ */
 import { Router } from 'express';
-import { ObjectId } from 'mongodb';
-import { getMongoDBCollection, getUsersCollection } from '../lib/mongodb';
-import { broadcastNotification } from '../lib/supabase';
+import { getUsersCollection } from '../lib/mongodb';
+import { getSupabaseClient, broadcastNotification } from '../lib/supabase';
 
 const router = Router();
 
-interface FriendRequest {
-  _id?: ObjectId;
-  fromUserId: string;
-  fromUsername: string;
-  fromDisplayName: string;
-  fromAvatar?: string;
-  toUserId: string;
-  toUsername: string;
-  status: 'pending' | 'accepted' | 'declined';
-  createdAt: Date;
-  updatedAt: Date;
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+async function resolveUserId(username: string): Promise<string | null> {
+  const usersCollection = await getUsersCollection();
+  const user = await usersCollection.findOne({
+    $or: [{ username }, { username: `@${username}` }],
+  });
+  if (!user) return null;
+  return (user as any).supabaseId || user._id?.toString() || username;
 }
 
-async function getFriendRequestsCollection() {
-  return getMongoDBCollection('friend_requests') as any;
+async function resolveUserInfo(username: string): Promise<{ userId: string; displayName: string; avatar: string } | null> {
+  const usersCollection = await getUsersCollection();
+  const user = await usersCollection.findOne({
+    $or: [{ username }, { username: `@${username}` }],
+  });
+  if (!user) return null;
+  return {
+    userId: (user as any).supabaseId || user._id?.toString() || username,
+    displayName: (user as any).displayName || username,
+    avatar: (user as any).profileImage || '',
+  };
 }
 
-async function getFriendsCollection() {
-  return getMongoDBCollection('friends') as any;
-}
-
-async function getNotificationsCollection() {
-  return getMongoDBCollection('notifications') as any;
-}
-
-// POST /api/friends/request — send a friend request
+// ── POST /api/friends/request ─────────────────────────────────────────────────
 router.post('/friends/request', async (req, res) => {
   try {
     const { fromUserId, fromUsername, fromDisplayName, fromAvatar, toUsername } = req.body;
@@ -38,138 +40,138 @@ router.post('/friends/request', async (req, res) => {
       return res.status(400).json({ error: 'fromUserId, fromUsername, toUsername required' });
     }
 
-    // Look up the target user
-    const usersCollection = await getUsersCollection();
-    const toUser = await usersCollection.findOne({ username: toUsername });
-    if (!toUser) return res.status(404).json({ error: 'User not found' });
+    const toInfo = await resolveUserInfo(toUsername);
+    if (!toInfo) return res.status(404).json({ error: 'User not found' });
+    const { userId: toUserId } = toInfo;
 
-    const toUserId = toUser.supabaseId || toUser._id?.toString() || toUsername;
-
-    // Don't friend yourself
     if (fromUserId === toUserId || fromUsername === toUsername) {
       return res.status(400).json({ error: 'Cannot send friend request to yourself' });
     }
 
-    const col = await getFriendRequestsCollection();
+    const sb = getSupabaseClient();
 
-    // Check for existing request or friendship
-    const existing = await col.findOne({
-      $or: [
-        { fromUserId, toUserId },
-        { fromUserId: toUserId, toUserId: fromUserId },
-      ],
-      status: 'pending',
-    });
+    // Check for existing pending request
+    const { data: existing } = await sb
+      .from('friend_requests')
+      .select('id')
+      .or(`and(from_user_id.eq.${fromUserId},to_user_id.eq.${toUserId}),and(from_user_id.eq.${toUserId},to_user_id.eq.${fromUserId})`)
+      .eq('status', 'pending')
+      .maybeSingle();
+
     if (existing) {
-      return res.status(409).json({ error: 'Friend request already pending', requestId: existing._id });
+      return res.status(409).json({ error: 'Friend request already pending', requestId: existing.id });
     }
 
     // Check already friends
-    const friendsCol = await getFriendsCollection();
-    const alreadyFriends = await friendsCol.findOne({
-      $or: [
-        { userId: fromUserId, friendId: toUserId },
-        { userId: toUserId, friendId: fromUserId },
-      ],
-    });
-    if (alreadyFriends) return res.status(409).json({ error: 'Already friends' });
+    const { data: friendship } = await sb
+      .from('friends')
+      .select('id')
+      .or(`and(user_id.eq.${fromUserId},friend_id.eq.${toUserId}),and(user_id.eq.${toUserId},friend_id.eq.${fromUserId})`)
+      .maybeSingle();
 
-    const request: FriendRequest = {
-      fromUserId,
-      fromUsername,
-      fromDisplayName: fromDisplayName || fromUsername,
-      fromAvatar,
-      toUserId,
-      toUsername,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    if (friendship) return res.status(409).json({ error: 'Already friends' });
 
-    const result = await col.insertOne(request);
+    // Insert friend request
+    const { data: request, error } = await sb
+      .from('friend_requests')
+      .insert({
+        from_user_id: fromUserId,
+        from_username: fromUsername,
+        from_display_name: fromDisplayName || fromUsername,
+        from_avatar: fromAvatar || null,
+        to_user_id: toUserId,
+        to_username: toUsername,
+        status: 'pending',
+      })
+      .select()
+      .single();
 
-    // Create notification for recipient
-    const notifCol = await getNotificationsCollection();
+    if (error || !request) {
+      console.error('Failed to insert friend request:', error);
+      return res.status(500).json({ error: 'Failed to send friend request' });
+    }
+
+    // Broadcast notification via Supabase Realtime
     const notif = {
       userId: toUserId,
       fromUserId,
       fromUsername,
       fromDisplayName: fromDisplayName || fromUsername,
-      fromProfileImage: fromAvatar,
+      fromProfileImage: fromAvatar || null,
       type: 'friend_request',
-      requestId: result.insertedId,
+      requestId: request.id,
       read: false,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     };
-    const notifResult = await notifCol.insertOne(notif);
-    // Broadcast instantly via Supabase Realtime
-    broadcastNotification({ ...notif, _id: notifResult.insertedId.toString(), requestId: result.insertedId.toString(), createdAt: notif.createdAt.toISOString() }).catch(() => {});
+    broadcastNotification(notif).catch(() => {});
 
-    return res.status(201).json({ requestId: result.insertedId, message: 'Friend request sent' });
+    return res.status(201).json({ requestId: request.id, message: 'Friend request sent' });
   } catch (error) {
     console.error('Error sending friend request:', error);
     return res.status(500).json({ error: 'Failed to send friend request' });
   }
 });
 
-// PUT /api/friends/request/:id/accept
+// ── PUT /api/friends/request/:id/accept ──────────────────────────────────────
 router.put('/friends/request/:id/accept', async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.body; // The person accepting (toUserId)
+    const { userId } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId required' });
 
-    const col = await getFriendRequestsCollection();
-    const request = await col.findOne({ _id: new ObjectId(id) });
+    const sb = getSupabaseClient();
+
+    const { data: request } = await sb
+      .from('friend_requests')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
     if (!request) return res.status(404).json({ error: 'Request not found' });
-    if (request.toUserId !== userId) return res.status(403).json({ error: 'Not authorized' });
+    if (request.to_user_id !== userId) return res.status(403).json({ error: 'Not authorized' });
     if (request.status !== 'pending') return res.status(400).json({ error: 'Request already processed' });
 
-    await col.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { status: 'accepted', updatedAt: new Date() } }
-    );
+    // Update status
+    await sb.from('friend_requests').update({ status: 'accepted', updated_at: new Date().toISOString() }).eq('id', id);
 
-    // Create bidirectional friendship
-    const friendsCol = await getFriendsCollection();
-    const now = new Date();
-    await friendsCol.insertMany([
+    // Fetch display info for both sides from MongoDB
+    const [fromInfo, toInfo] = await Promise.all([
+      resolveUserInfo(request.from_username),
+      resolveUserInfo(request.to_username),
+    ]);
+
+    // Bidirectional friendship rows in Supabase
+    await sb.from('friends').insert([
       {
-        userId: request.fromUserId,
-        friendId: request.toUserId,
-        username: request.fromUsername,
-        friendUsername: request.toUsername,
-        createdAt: now,
+        user_id: request.from_user_id,
+        friend_id: request.to_user_id,
+        username: request.from_username,
+        friend_username: request.to_username,
+        friend_display_name: toInfo?.displayName || request.to_username,
+        friend_avatar: toInfo?.avatar || null,
       },
       {
-        userId: request.toUserId,
-        friendId: request.fromUserId,
-        username: request.toUsername,
-        friendUsername: request.fromUsername,
-        createdAt: now,
+        user_id: request.to_user_id,
+        friend_id: request.from_user_id,
+        username: request.to_username,
+        friend_username: request.from_username,
+        friend_display_name: fromInfo?.displayName || request.from_username,
+        friend_avatar: fromInfo?.avatar || null,
       },
     ]);
 
-    // Notify the original sender
-    const notifCol = await getNotificationsCollection();
-    const acceptNotif = {
-      userId: request.fromUserId,
-      fromUserId: request.toUserId,
-      fromUsername: request.toUsername,
-      fromDisplayName: request.toUsername,
+    // Notify original sender
+    const notif = {
+      userId: request.from_user_id,
+      fromUserId: request.to_user_id,
+      fromUsername: request.to_username,
+      fromDisplayName: toInfo?.displayName || request.to_username,
       type: 'friend_accepted',
-      requestId: new ObjectId(id),
+      requestId: id,
       read: false,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     };
-    const acceptResult = await notifCol.insertOne(acceptNotif);
-    broadcastNotification({ ...acceptNotif, _id: acceptResult.insertedId.toString(), requestId: id, createdAt: acceptNotif.createdAt.toISOString() }).catch(() => {});
-
-    // Mark original friend_request notification as read
-    await notifCol.updateOne(
-      { type: 'friend_request', requestId: new ObjectId(id) },
-      { $set: { read: true } }
-    );
+    broadcastNotification(notif).catch(() => {});
 
     return res.json({ message: 'Friend request accepted' });
   } catch (error) {
@@ -178,30 +180,27 @@ router.put('/friends/request/:id/accept', async (req, res) => {
   }
 });
 
-// PUT /api/friends/request/:id/decline
+// ── PUT /api/friends/request/:id/decline ─────────────────────────────────────
 router.put('/friends/request/:id/decline', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId required' });
 
-    const col = await getFriendRequestsCollection();
-    const request = await col.findOne({ _id: new ObjectId(id) });
+    const sb = getSupabaseClient();
+
+    const { data: request } = await sb
+      .from('friend_requests')
+      .select('from_user_id, to_user_id')
+      .eq('id', id)
+      .maybeSingle();
+
     if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.to_user_id !== userId && request.from_user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
 
-    // Either recipient can decline OR sender can cancel
-    const isRecipient = request.toUserId === userId;
-    const isSender = request.fromUserId === userId;
-    if (!isRecipient && !isSender) return res.status(403).json({ error: 'Not authorized' });
-
-    await col.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { status: 'declined', updatedAt: new Date() } }
-    );
-
-    // Remove related notification
-    const notifCol = await getNotificationsCollection();
-    await notifCol.deleteOne({ type: 'friend_request', requestId: new ObjectId(id) });
+    await sb.from('friend_requests').update({ status: 'declined', updated_at: new Date().toISOString() }).eq('id', id);
 
     return res.json({ message: 'Friend request declined' });
   } catch (error) {
@@ -210,45 +209,76 @@ router.put('/friends/request/:id/decline', async (req, res) => {
   }
 });
 
-// GET /api/friends/requests/incoming?userId=
+// ── GET /api/friends/requests/incoming?userId= ────────────────────────────────
 router.get('/friends/requests/incoming', async (req, res) => {
   try {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId required' });
 
-    const col = await getFriendRequestsCollection();
-    const requests = await col
-      .find({ toUserId: userId, status: 'pending' })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .toArray();
+    const sb = getSupabaseClient();
+    const { data: requests } = await sb
+      .from('friend_requests')
+      .select('*')
+      .eq('to_user_id', userId as string)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-    return res.json({ requests });
+    // Map snake_case → camelCase for frontend compatibility
+    const mapped = (requests || []).map((r: any) => ({
+      _id: r.id,
+      id: r.id,
+      fromUserId: r.from_user_id,
+      fromUsername: r.from_username,
+      fromDisplayName: r.from_display_name,
+      fromAvatar: r.from_avatar,
+      toUserId: r.to_user_id,
+      toUsername: r.to_username,
+      status: r.status,
+      createdAt: r.created_at,
+    }));
+
+    return res.json({ requests: mapped });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch incoming requests' });
   }
 });
 
-// GET /api/friends/requests/outgoing?userId=
+// ── GET /api/friends/requests/outgoing?userId= ────────────────────────────────
 router.get('/friends/requests/outgoing', async (req, res) => {
   try {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId required' });
 
-    const col = await getFriendRequestsCollection();
-    const requests = await col
-      .find({ fromUserId: userId, status: 'pending' })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .toArray();
+    const sb = getSupabaseClient();
+    const { data: requests } = await sb
+      .from('friend_requests')
+      .select('*')
+      .eq('from_user_id', userId as string)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-    return res.json({ requests });
+    const mapped = (requests || []).map((r: any) => ({
+      _id: r.id,
+      id: r.id,
+      fromUserId: r.from_user_id,
+      fromUsername: r.from_username,
+      fromDisplayName: r.from_display_name,
+      fromAvatar: r.from_avatar,
+      toUserId: r.to_user_id,
+      toUsername: r.to_username,
+      status: r.status,
+      createdAt: r.created_at,
+    }));
+
+    return res.json({ requests: mapped });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch outgoing requests' });
   }
 });
 
-// GET /api/friends/status?fromUserId=&toUsername=
+// ── GET /api/friends/status?fromUserId=&toUsername= ──────────────────────────
 router.get('/friends/status', async (req, res) => {
   try {
     const { fromUserId, toUsername } = req.query;
@@ -256,97 +286,110 @@ router.get('/friends/status', async (req, res) => {
       return res.status(400).json({ error: 'fromUserId and toUsername required' });
     }
 
-    const usersCollection = await getUsersCollection();
-    const toUser = await usersCollection.findOne({ username: toUsername as string });
-    if (!toUser) return res.json({ status: 'not_found' });
-    const toUserId = toUser.supabaseId || toUser._id?.toString() || toUsername;
+    const toId = await resolveUserId(toUsername as string);
+    if (!toId) return res.json({ status: 'not_found' });
 
-    const col = await getFriendRequestsCollection();
-    const friendsCol = await getFriendsCollection();
+    const sb = getSupabaseClient();
 
-    // Check friendship
-    const areFriends = await friendsCol.findOne({
-      $or: [
-        { userId: fromUserId, friendId: toUserId },
-        { userId: toUserId, friendId: fromUserId },
-      ],
-    });
-    if (areFriends) return res.json({ status: 'friends' });
+    // Check if already friends
+    const { data: friendship } = await sb
+      .from('friends')
+      .select('id')
+      .eq('user_id', fromUserId as string)
+      .eq('friend_id', toId)
+      .maybeSingle();
 
-    // Check pending request (sent by me)
-    const sentRequest = await col.findOne({
-      fromUserId,
-      toUserId,
-      status: 'pending',
-    });
-    if (sentRequest) return res.json({ status: 'request_sent', requestId: sentRequest._id });
+    if (friendship) return res.json({ status: 'friends' });
 
-    // Check pending request (received from them)
-    const receivedRequest = await col.findOne({
-      fromUserId: toUserId,
-      toUserId: fromUserId as string,
-      status: 'pending',
-    });
-    if (receivedRequest) return res.json({ status: 'request_received', requestId: receivedRequest._id });
+    // Check outgoing request
+    const { data: outgoing } = await sb
+      .from('friend_requests')
+      .select('id')
+      .eq('from_user_id', fromUserId as string)
+      .eq('to_user_id', toId)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (outgoing) return res.json({ status: 'request_sent', requestId: outgoing.id });
+
+    // Check incoming request
+    const { data: incoming } = await sb
+      .from('friend_requests')
+      .select('id')
+      .eq('from_user_id', toId)
+      .eq('to_user_id', fromUserId as string)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (incoming) return res.json({ status: 'request_received', requestId: incoming.id });
 
     return res.json({ status: 'none' });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to check friend status' });
+    console.error('Error fetching friend status:', error);
+    return res.status(500).json({ error: 'Failed to get friend status' });
   }
 });
 
-// GET /api/friends/:username — get friends list
+// ── GET /api/friends/:username ────────────────────────────────────────────────
 router.get('/friends/:username', async (req, res) => {
   try {
     const { username } = req.params;
+    const userId = await resolveUserId(username);
+    if (!userId) return res.status(404).json({ error: 'User not found' });
+
+    const sb = getSupabaseClient();
+    const { data: friendRows } = await sb
+      .from('friends')
+      .select('friend_username, friend_display_name, friend_avatar')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (!friendRows || friendRows.length === 0) {
+      return res.json({ friends: [], count: 0 });
+    }
+
+    // Enrich with full profile from MongoDB
     const usersCollection = await getUsersCollection();
-    const user = await usersCollection.findOne({ username });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const userId = user.supabaseId || user._id?.toString() || username;
-
-    const friendsCol = await getFriendsCollection();
-    const friendRecords = await friendsCol
-      .find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .toArray();
-
-    const friendUsernames = friendRecords.map((f: any) => f.friendUsername);
-
-    // Fetch user profiles for all friends
-    const friendProfiles = await usersCollection
-      .find({ username: { $in: friendUsernames } })
+    const usernames = friendRows.map((f: any) => f.friend_username);
+    const profiles = await usersCollection
+      .find({ username: { $in: usernames } })
       .project({ emailPassword: 0, strikes: 0, userEmail: 0 })
       .toArray();
 
-    return res.json({ friends: friendProfiles, count: friendProfiles.length });
+    // Preserve order from Supabase
+    const profileMap = new Map(profiles.map((p: any) => [p.username, p]));
+    const friends = friendRows.map((f: any) => profileMap.get(f.friend_username) || {
+      username: f.friend_username,
+      displayName: f.friend_display_name,
+      profileImage: f.friend_avatar,
+    });
+
+    return res.json({ friends, count: friends.length });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch friends' });
   }
 });
 
-// DELETE /api/friends/:friendUsername?username=
+// ── DELETE /api/friends/:friendUsername?username= ─────────────────────────────
 router.delete('/friends/:friendUsername', async (req, res) => {
   try {
     const { friendUsername } = req.params;
     const { username } = req.query;
     if (!username) return res.status(400).json({ error: 'username required' });
 
-    const usersCollection = await getUsersCollection();
-    const me = await usersCollection.findOne({ username: username as string });
-    const them = await usersCollection.findOne({ username: friendUsername });
-    if (!me || !them) return res.status(404).json({ error: 'User not found' });
+    const [myId, theirId] = await Promise.all([
+      resolveUserId(username as string),
+      resolveUserId(friendUsername),
+    ]);
+    if (!myId || !theirId) return res.status(404).json({ error: 'User not found' });
 
-    const myId = me.supabaseId || me._id?.toString() || username;
-    const theirId = them.supabaseId || them._id?.toString() || friendUsername;
-
-    const friendsCol = await getFriendsCollection();
-    await friendsCol.deleteMany({
-      $or: [
-        { userId: myId, friendId: theirId },
-        { userId: theirId, friendId: myId },
-      ],
-    });
+    const sb = getSupabaseClient();
+    // Delete both directions
+    await Promise.all([
+      sb.from('friends').delete().eq('user_id', myId).eq('friend_id', theirId),
+      sb.from('friends').delete().eq('user_id', theirId).eq('friend_id', myId),
+    ]);
 
     return res.json({ message: 'Unfriended successfully' });
   } catch (error) {

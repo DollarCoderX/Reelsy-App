@@ -7,12 +7,14 @@ const pollinationsText = async (prompt: string) => {
   return text.trim().replace(/^['"]|['"]$/g, "");
 };
 
-export const generateText = async (prompt: string, max_tokens = 220) => {
+export const generateText = async (prompt: string, max_tokens = 220, systemPrompt?: string) => {
   try {
+    const body: Record<string, unknown> = { prompt, max_tokens };
+    if (systemPrompt) body.systemPrompt = systemPrompt;
     const response = await fetch("/api/groq", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, max_tokens }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

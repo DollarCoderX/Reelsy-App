@@ -26,19 +26,10 @@ initSupabase()
     logger.warn({ err }, "Supabase init failed – some features may be degraded");
   });
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-
-const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
+// Use explicit API_PORT env var if set, otherwise default to 3000.
+// We do NOT use PORT here because Replit injects PORT for the preview proxy
+// and the API server must stay on its own dedicated port.
+const port = Number(process.env["API_PORT"] ?? process.env["API_SERVER_PORT"] ?? 3000);
 
 app.listen(port, (err) => {
   if (err) {

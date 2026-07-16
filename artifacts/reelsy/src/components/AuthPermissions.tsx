@@ -96,8 +96,19 @@ const AuthPermissions = () => {
               });
 
               if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Registration failed');
+                let errMsg = 'Registration failed — please try again';
+                try {
+                  const ct = response.headers.get('content-type') || '';
+                  if (ct.includes('application/json')) {
+                    const data = await response.json();
+                    errMsg = data.error || data.message || errMsg;
+                  } else if (response.status === 409) {
+                    errMsg = 'Email or username already registered';
+                  } else if (response.status >= 500) {
+                    errMsg = 'Server error — please try again in a moment';
+                  }
+                } catch {}
+                throw new Error(errMsg);
               }
 
               const result = await response.json();

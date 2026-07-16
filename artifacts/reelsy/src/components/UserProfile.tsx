@@ -105,6 +105,8 @@ const RealUserProfileView = ({
   const friendState = statusCache[realUser.username];
   const friendStatus = friendState?.status || "none";
   const isLoading = friendLoading[realUser.username] || false;
+  const [messagingBlocked, setMessagingBlocked] = useState(false);
+  const [isStartingDm, setIsStartingDm] = useState(false);
 
   useEffect(() => {
     getStatus(realUser.username).catch(() => {});
@@ -242,13 +244,27 @@ const RealUserProfileView = ({
             {/* Action buttons */}
             {!isMe && (
               <div className="absolute bottom-0 right-5 z-10 flex translate-y-1/2 items-center gap-2">
-                {onMessage && (friendStatus === "friends" || friendStatus === "none") && (
+                {onMessage && !isMe && (
                   <button
-                    onClick={() => { if (onMessage) onMessage(realUser); onClose(); }}
+                    onClick={async () => {
+                      if (messagingBlocked) return;
+                      if (isStartingDm) return;
+                      // Store in localStorage so ChatTab can pick it up
+                      localStorage.setItem("reelsy_open_dm_username", realUser.username || "");
+                      localStorage.setItem("reelsy_open_dm_displayName", realUser.displayName || realUser.username || "");
+                      localStorage.setItem("reelsy_open_dm_avatar", realUser.profileImage || "");
+                      onMessage(realUser);
+                      onClose();
+                    }}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-foreground shadow-sm"
                   >
-                    <Mail className="h-4 w-4" />
+                    {isStartingDm ? <span className="w-4 h-4 border-2 border-foreground border-t-transparent rounded-full animate-spin" /> : <Mail className="h-4 w-4" />}
                   </button>
+                )}
+                {messagingBlocked && (
+                  <div className="absolute left-0 right-0 -bottom-8 text-center">
+                    <span className="text-[10px] text-red-500 font-medium">Can't message — friends only</span>
+                  </div>
                 )}
                 <button
                   onClick={handleFriendAction}

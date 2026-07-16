@@ -74,6 +74,64 @@ router.get('/posts', async (req, res) => {
   }
 });
 
+// GET /api/posts/feed/friends?username=&limit=&before= — only posts from friends + self
+router.get('/posts/feed/friends', async (req, res) => {
+  try {
+    const { username, limit = 20, before } = req.query;
+    if (!username) return res.status(400).json({ error: 'username required' });
+
+    // Get the user's Supabase ID
+    const { getUsersCollection } = await import('../lib/mongodb');
+    const usersCol = await getUsersCollection();
+    const me = await usersCol.findOne({
+      $or: [{ username: username as string }, { username: '@' + (username as string) }],
+    });
+    const myId = me ? ((me as any).supabaseId || me._id?.toString() || username) : null;
+
+    let friendUsernames: string[] = [username as string];
+
+    if (myId) {
+      const { getSupabase } = await import('../lib/supabase');
+      const sb = await getSupabase();
+      const { data: friendRows } = await sb
+        .from('friends')
+        .select('friend_username')
+        .eq('user_id', myId as string);
+
+      if (friendRows && friendRows.length > 0) {
+        friendUsernames = [...friendUsernames, ...friendRows.map((f: any) => f.friend_username)];
+      }
+    }
+
+    const collection = await getMongoDBCollection('posts');
+    const query: any = { authorUsername: { $in: friendUsernames } };
+    if (before) {
+      try { query._id = { $lt: new ObjectId(String(before)) }; } catch {}
+    }
+
+    const posts = await collection
+      .find(query)
+      .sort({ _id: -1 })
+      .limit(Number(limit))
+      .toArray();
+
+    const postsWithCounts = posts.map((p: any) => ({
+      ...p,
+      likesCount: Array.isArray(p.likes) ? p.likes.length : 0,
+      repostsCount: Array.isArray(p.reposts) ? p.reposts.length : 0,
+      savesCount: Array.isArray(p.saves) ? p.saves.length : 0,
+    }));
+
+    const hasMore = posts.length === Number(limit);
+    const nextCursor = hasMore ? String(posts[posts.length - 1]._id) : null;
+
+    return res.json({ posts: postsWithCounts, hasMore, nextCursor });
+  } catch (error) {
+    console.error('Error fetching friends feed:', error);
+    return res.status(500).json({ error: 'Failed to fetch friends feed' });
+  }
+});
+
 // GET /api/posts/trending - top posts by engagement in last 24h
 router.get('/posts/trending', async (req, res) => {
   try {

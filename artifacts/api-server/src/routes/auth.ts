@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { sendOTP, verifyOTP, generateMagicLinkToken, verifyMagicLinkToken } from '../lib/otp';
 import { hashPassword, verifyPassword, generateToken, generateUniqueUsername, generateBaseUsername, findAvailableUsername } from '../lib/auth-utils';
 import { getUsersCollection, getMongoDBCollection, ReelsyUser } from '../lib/mongodb';
-import { createSupabaseUser, getSupabaseUser, updateSupabaseUser, initSupabase, checkSupabaseUserStatus, banUserViaAdmin, unbanUserViaAdmin, confirmUserEmail } from '../lib/supabase';
+import { createSupabaseUser, getSupabaseUser, updateSupabaseUser, initSupabase, getSupabaseClient, checkSupabaseUserStatus, banUserViaAdmin, unbanUserViaAdmin, confirmUserEmail } from '../lib/supabase';
 import { isSuspiciousEmail, addStrike, sendSuspensionReviewEmail } from '../lib/suspension';
 
 const router = Router();
@@ -185,6 +185,28 @@ router.post('/register', async (req, res) => {
 
     const mongoResult = await usersCollection.insertOne(mongoUser);
 
+    // Also create a Supabase auth user so this account can use real-time messaging
+    let supabaseId: string | undefined;
+    try {
+      const sb = getSupabaseClient();
+      const { data: sbData } = await (sb.auth as any).admin.createUser({
+        email: email.toLowerCase(),
+        password,
+        email_confirm: true,
+        user_metadata: { username, displayName },
+      });
+      supabaseId = sbData?.user?.id;
+      if (supabaseId) {
+        await usersCollection.updateOne(
+          { _id: mongoResult.insertedId },
+          { $set: { supabaseId } }
+        );
+      }
+    } catch (sbErr: any) {
+      // Non-fatal: user still works, but won't have real-time messaging until supabaseId is set
+      console.warn('Supabase user creation skipped during register:', sbErr?.message);
+    }
+
     // Generate token
     const token = generateToken({ userId: mongoResult.insertedId, username, email });
 
@@ -195,6 +217,7 @@ router.post('/register', async (req, res) => {
         username,
         displayName,
         email,
+        supabaseId,
         age: mongoUser.age,
         interests: mongoUser.interests,
         profileImage: mongoUser.profileImage,
@@ -221,271 +244,19 @@ router.post('/signin-email', async (req, res) => {
     let user: any = null;
 
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
-      // ── Email ──
+      // Email
       user = await usersCollection.findOne({ userEmail: identifier.toLowerCase() });
       if (!user) return res.status(401).json({ error: 'EMAIL_NOT_REGISTERED', message: 'No account found with this email' });
     } else if (/^\+?\d[\d\s\-()]{5,}$/.test(identifier)) {
-      // ── Phone ──
+      // Phone
       const normalised = identifier.replace(/[\s\-()]/g, '');
       user = await usersCollection.findOne({ $or: [{ phone: normalised }, { phone: identifier }] });
       if (!user) return res.status(401).json({ error: 'PHONE_NOT_REGISTERED', message: 'No account found with this phone number' });
     } else {
-      // ── Username ──
+      // Username
       const clean = identifier.replace(/^@/, '');
-      const re = new RegExp(`^@?${clean.replace(/[.*+?^${}()|[\]\\]/g, '\\// Email sign-in endpoint
-router.post('/signin-email', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    const usersCollection = await getUsersCollection();
-    const user = await usersCollection.findOne({ userEmail: email.toLowerCase() });
-
-    if (!user) {
-      return res.status(401).json({ error: 'EMAIL_NOT_REGISTERED', message: 'This email is not registered' });
-    }
-
-    if (!user.emailPassword) {
-      return res.status(401).json({ error: 'INVALID_AUTH_METHOD', message: 'This account uses Google Sign-In' });
-    }
-
-    const passwordMatch = verifyPassword(password, user.emailPassword);
-    if (!passwordMatch) {
-      return res.status(401).json({ error: 'INVALID_PASSWORD', message: 'Incorrect password' });
-    }
-
-    const token = generateToken({ userId: user._id, username: user.username, email: user.userEmail });
-
-    return res.json({
-      message: 'Sign-in successful',
-      user: {
-        id: user._id,
-        username: user.username,
-        displayName: user.displayName,
-        email: user.userEmail,
-        age: user.age,
-        profileImage: user.profileImage,
-        interests: user.interests,
-      },
-      token,
-    });
-  } catch (error) {
-    req.log.error(error, 'Error signing in with email');
-    return res.status(500).json({ error: 'Sign-in failed' });
-  }
-});')}import { Router, Request, Response } from 'express';
-import { sendOTP, verifyOTP, generateMagicLinkToken, verifyMagicLinkToken } from '../lib/otp';
-import { hashPassword, verifyPassword, generateToken, generateUniqueUsername, generateBaseUsername, findAvailableUsername } from '../lib/auth-utils';
-import { getUsersCollection, getMongoDBCollection, ReelsyUser } from '../lib/mongodb';
-import { createSupabaseUser, getSupabaseUser, updateSupabaseUser, initSupabase, checkSupabaseUserStatus, banUserViaAdmin, unbanUserViaAdmin, confirmUserEmail } from '../lib/supabase';
-import { isSuspiciousEmail, addStrike, sendSuspensionReviewEmail } from '../lib/suspension';
-
-const router = Router();
-
-let supabaseInitialized = false;
-
-// Lazy initialize Supabase on first request
-const ensureSupabaseInitialized = async () => {
-  if (!supabaseInitialized) {
-    await initSupabase();
-    supabaseInitialized = true;
-  }
-};
-
-// Endpoint to request an OTP
-router.post('/send-otp', async (req, res) => {
-  try {
-    await ensureSupabaseInitialized();
-    
-    const { email } = req.body;
-
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ error: 'Valid email is required' });
-    }
-
-    // Disposable / temporary email protection (server-side)
-    const normalized = email.trim().toLowerCase();
-    const domain = normalized.split('@')[1] || '';
-
-    // Simple allow/deny detection using a small deny list + heuristics.
-    // This is intentionally lightweight (no external deps) for now.
-    const disposableDomains = new Set([
-      'mailinator.com',
-      '10minutemail.com',
-      '10minutemail.net',
-      'guerrillamail.com',
-      'guerrillamail.net',
-      'tempmail.com',
-      'temp-mail.org',
-      'getairmail.com',
-      'throwawaymail.com',
-      'yopmail.com',
-      'yopmail.net',
-      'spamgourmet.com',
-      'maildrop.cc',
-      'trashmail.com',
-      'guerrilla-mail.com',
-    ]);
-
-    const looksTemporary =
-      domain &&
-      (disposableDomains.has(domain) ||
-        domain.includes('mailinator') ||
-        domain.includes('10minutemail') ||
-        domain.includes('guerrillamail') ||
-        domain.includes('yopmail') ||
-        domain.includes('tempmail'));
-
-    if (looksTemporary) {
-      return res.status(403).json({
-        error: 'TEMP_EMAIL_BLOCKED',
-        message: `Sorry, you can’t use a temporary email from ${domain} to sign up. It against our TOS.`,
-        domain,
-      });
-    }
-
-    await sendOTP(normalized);
-    return res.status(200).json({ message: 'OTP sent successfully' });
-  } catch (error) {
-    req.log.error(error, 'Error sending OTP');
-    // Handle rate limit errors from sendOTP
-    const msg = error && (error as Error).message;
-    if (typeof msg === 'string' && msg.startsWith('RATE_LIMIT_COOLDOWN:')) {
-      const parts = msg.split(':');
-      const minutes = Number(parts[1]) || null;
-      return res.status(429).json({ error: 'RATE_LIMIT_COOLDOWN', cooldownMinutes: minutes, message: `Too many OTP requests. Try again in ${minutes} minute(s).` });
-    }
-
-    if (typeof msg === 'string' && msg === 'RATE_LIMIT_EXCEEDED') {
-      return res.status(429).json({ error: 'RATE_LIMIT_EXCEEDED', message: 'OTP request limit reached. Please try again later.' });
-    }
-
-    return res.status(500).json({ error: 'Failed to send OTP' });
-  }
-});
-
-// Endpoint to verify an OTP
-router.post('/verify-otp', async (req, res) => {
-  try {
-    const { email, code } = req.body;
-    
-    if (!email || !code || typeof email !== 'string' || typeof code !== 'string') {
-      return res.status(400).json({ error: 'Email and code are required' });
-    }
-    
-    const isValid = verifyOTP(email, code);
-    
-    if (isValid) {
-      return res.status(200).json({ message: 'OTP verified successfully' });
-    } else {
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
-    }
-  } catch (error) {
-    req.log.error(error, 'Error verifying OTP');
-    return res.status(500).json({ error: 'Failed to verify OTP' });
-  }
-});
-
-// Endpoint to register with email and password
-router.post('/register', async (req, res) => {
-  try {
-    const {
-      email,
-      password,
-      displayName,
-      username: rawUsername,
-      age,
-      interests,
-      profileImage,
-    } = req.body;
-
-    if (!email || !password || !displayName || typeof email !== 'string' || typeof password !== 'string' || typeof displayName !== 'string') {
-      return res.status(400).json({ error: 'Email, password, and displayName are required' });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
-    }
-
-    const usersCollection = await getUsersCollection();
-
-    // Check if email already exists
-    const existingEmail = await usersCollection.findOne({ userEmail: email.toLowerCase() });
-    if (existingEmail) {
-      return res.status(409).json({ error: 'Email already registered' });
-    }
-
-    // Normalize and validate username if provided
-    let username = rawUsername && typeof rawUsername === 'string' ? rawUsername.trim().replace(/^@/, '') : '';
-    if (username) {
-      if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) {
-        return res.status(400).json({ error: 'Username must be 3-24 characters and contain only letters, numbers, or underscores' });
-      }
-      const existingUsername = await usersCollection.findOne({ username: username.toLowerCase() });
-      if (existingUsername) {
-        return res.status(409).json({ error: 'Username already taken' });
-      }
-      username = username.toLowerCase();
-    }
-
-    // Check for suspicious email domain
-    const emailCheck = isSuspiciousEmail(email);
-
-    // Generate unique username if one was not provided
-    if (!username) {
-      const baseUsername = generateUniqueUsername(displayName);
-      username = await findAvailableUsername(baseUsername, usersCollection);
-    }
-
-    // Hash password
-    const hashedPassword = hashPassword(password);
-
-    // Build MongoDB user record
-    const mongoUser: ReelsyUser = {
-      userEmail: email.toLowerCase(),
-      emailPassword: hashedPassword,
-      username,
-      displayName,
-      authProvider: 'email',
-      age: typeof age === 'number' ? age : undefined,
-      interests: Array.isArray(interests) ? interests.filter((item) => typeof item === 'string') : undefined,
-      profileImage: typeof profileImage === 'string' ? profileImage : undefined,
-      strikeCount: 0,
-      strikes: [],
-      isBanned: false,
-      isSuspended: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const mongoResult = await usersCollection.insertOne(mongoUser);
-
-    // Generate token
-    const token = generateToken({ userId: mongoResult.insertedId, username, email });
-
-    return res.status(201).json({
-      message: 'Registration successful',
-      user: {
-        id: mongoResult.insertedId,
-        username,
-        displayName,
-        email,
-        age: mongoUser.age,
-        interests: mongoUser.interests,
-        profileImage: mongoUser.profileImage,
-      },
-      token,
-    });
-  } catch (error) {
-    req.log.error(error, 'Error registering user');
-    return res.status(500).json({ error: 'Registration failed' });
-  }
-});
-
-, 'i');
+      const escaped = clean.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, (c: string) => '\\' + c);
+      const re = new RegExp('^@?' + escaped + '$', 'i');
       user = await usersCollection.findOne({ username: { $regex: re } });
       if (!user) return res.status(401).json({ error: 'USERNAME_NOT_FOUND', message: 'No account found with this username' });
     }

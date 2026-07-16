@@ -34,6 +34,10 @@ async function request<T>(
 
 export const api = {
   posts: {
+    getFriendsFeed: (params: { username: string; limit?: number; before?: string }) =>
+      request<{ posts: Post[]; hasMore: boolean; nextCursor: string | null }>('/posts/feed/friends', {
+        query: params as Record<string, string | number>,
+      }),
     getFeed: (params?: { limit?: number; skip?: number; username?: string; before?: string }) =>
       request<{ posts: Post[]; hasMore: boolean; nextCursor: string | null }>('/posts', { query: params as any }),
 

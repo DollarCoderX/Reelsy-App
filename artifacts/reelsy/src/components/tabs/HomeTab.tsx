@@ -1388,13 +1388,28 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     location: p.location || undefined,
   });
 
-  // Initial feed load + 30s polling for new posts from other users
+  // Initial feed load + 30s polling — respects feedType:
+  //   "foryou"    → all posts (global discovery)
+  //   "following" → only posts from friends + self
+  const myUsername = user?.username?.replace(/^@/, '') || '';
+
   useEffect(() => {
     let cancelled = false;
+    // Reset pagination when feed type changes
+    setApiFeedPosts([]);
+    setFeedHasMore(true);
+    setFeedNextCursor(null);
+
+    const fetchFeed = async (before?: string) => {
+      if (feedType === 'following' && myUsername) {
+        return api.posts.getFriendsFeed({ username: myUsername, limit: 20, before });
+      }
+      return api.posts.getFeed({ limit: 20, before });
+    };
 
     const loadInitial = async () => {
       try {
-        const { posts, hasMore, nextCursor } = await api.posts.getFeed({ limit: 20 });
+        const { posts, hasMore, nextCursor } = await fetchFeed();
         if (cancelled) return;
         setApiFeedPosts(posts.map(mapApiPost));
         setFeedHasMore(hasMore);
@@ -1404,13 +1419,13 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
 
     loadInitial();
 
-    // Poll every 30 s for new posts (so friends see each other's posts automatically)
+    // Poll every 30 s for new posts
     let pollInFlight = false;
     const poll = setInterval(async () => {
       if (cancelled || pollInFlight) return;
       pollInFlight = true;
       try {
-        const { posts } = await api.posts.getFeed({ limit: 20 });
+        const { posts } = await fetchFeed();
         if (cancelled) return;
         const fresh = posts.map(mapApiPost);
         setApiFeedPosts((prev) => {
@@ -1429,20 +1444,25 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
       cancelled = true;
       clearInterval(poll);
     };
-  }, []);
+  }, [feedType, myUsername]);
 
   const loadMorePosts = async () => {
     if (feedLoadingMore || !feedHasMore || !feedNextCursor) return;
     setFeedLoadingMore(true);
     try {
-      const { posts, hasMore, nextCursor } = await api.posts.getFeed({ limit: 20, before: feedNextCursor });
+      let result: { posts: any[]; hasMore: boolean; nextCursor: string | null };
+      if (feedType === 'following' && myUsername) {
+        result = await api.posts.getFriendsFeed({ username: myUsername, limit: 20, before: feedNextCursor });
+      } else {
+        result = await api.posts.getFeed({ limit: 20, before: feedNextCursor });
+      }
       setApiFeedPosts((prev) => {
         const existingIds = new Set(prev.map((p) => p.id));
-        const newPosts = posts.map(mapApiPost).filter((p) => !existingIds.has(p.id));
+        const newPosts = result.posts.map(mapApiPost).filter((p) => !existingIds.has(p.id));
         return [...prev, ...newPosts];
       });
-      setFeedHasMore(hasMore);
-      setFeedNextCursor(nextCursor);
+      setFeedHasMore(result.hasMore);
+      setFeedNextCursor(result.nextCursor);
     } catch { /* offline */ } finally {
       setFeedLoadingMore(false);
     }

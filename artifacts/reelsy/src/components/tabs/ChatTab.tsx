@@ -28,6 +28,7 @@ import { useAppContext } from "@/context/AppContext";
 import { useFeatureIntro } from "@/context/FeatureIntroContext";
 import { hasSeenFeatureIntro, markFeatureIntroSeen } from "@/lib/featureIntro";
 import { generateText } from "@/lib/ai";
+import RealDmView from "@/components/RealDmView";
 import UserProfile from "@/components/UserProfile";
 import { LottieEmoji } from "@/components/LottieEmoji";
 import { EmojiText } from "@/components/EmojiText";
@@ -69,6 +70,7 @@ interface ChatThread {
   isSMS?: boolean;
   isReelsyBot?: boolean;
   isMeraAi?: boolean;
+  isHelpCenter?: boolean;
   botId?: string;
   pinned?: boolean;
   isJoinable?: boolean;
@@ -2224,7 +2226,7 @@ const BlockConfirm = ({ name, onBlock, onClose }: { name: string; onBlock: () =>
 
 // ---- Main ChatTab ----
 const ChatTab = ({ onNavVisible }: ChatTabProps) => {
-  const { reelsyNumber, tier, t, ip } = useAppContext();
+  const { reelsyNumber, tier, t, ip, user: me } = useAppContext();
   const { requestFeatureIntro } = useFeatureIntro();
 
   // ── Real DM conversations (Supabase-backed) ──
@@ -2235,7 +2237,8 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
   const buildInitialThreads = (): ChatThread[] => {
     const base: ChatThread[] = [
       { id: "reelsy-official", name: "Reelsy", lastMessage: "Welcome to Reelsy! 🎉", time: "now", unread: 1, isGroup: false, isReelsy: true, pinned: true },
-      { id: "mera-ai", name: "Mera", lastMessage: "Reelsy AI is ready", time: "now", unread: 0, isGroup: false, isMeraAi: true, pinned: true },
+      { id: "help-center", name: "Help Center", lastMessage: "Ask me anything about Reelsy 🐋", time: "now", unread: 1, isGroup: false, isHelpCenter: true, pinned: true },
+      { id: "mera-ai", name: "Mera", lastMessage: "Hey bestie! ✨ I'm here for it 💫", time: "now", unread: 1, isGroup: false, isMeraAi: true, pinned: true },
       { id: "reelsy-bot", name: "ReelsyBot", lastMessage: "Send .menu to see all commands", time: "now", unread: 1, isGroup: false, isReelsyBot: true, pinned: true },
       { id: "mock-group-1", name: "Creators Chain 🎬", lastMessage: "Sarah: Let's launch this tonight! 🔥🔥🔥", time: "25m", unread: 5, isGroup: true, members: ["kabil", "sarah", "micheal", "jacob"], pinned: true },
       ...BOTS.map((b) => ({
@@ -2257,6 +2260,15 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
 
   const [threads, setThreads] = useState<ChatThread[]>(buildInitialThreads);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // ── Real DM conversation overlay (Supabase-backed) ──
+  const [activeDmConv, setActiveDmConv] = useState<{
+    id: string;
+    otherUsername: string;
+    otherDisplayName: string;
+    otherAvatar?: string;
+    isHelpCenter?: boolean;
+  } | null>(null);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>(() => {
     const now = Date.now();
     const D = 24 * 60 * 60 * 1000; // one day in ms
@@ -2384,11 +2396,20 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
         ];
       });
       init["reelsy-official"] = [...REELSY_MSGS];
+      init["help-center"] = [
+        {
+          id: 1,
+          fromName: "Help Center",
+          content: "Hey! 🐋 I'm the Reelsy Help Center. Ask me anything — account setup, privacy, posts, messages, friend requests, notifications, or anything else about the app!",
+          time: "now",
+          isMine: false,
+        },
+      ];
       init["mera-ai"] = [
         {
           id: 1,
           fromName: "Mera",
-          content: "Hi, I am Mera, Reelsy AI. Ask me to write, brainstorm, explain, plan, or generate an image.",
+          content: "Hey bestie! ✨ I'm Mera, your Reelsy AI companion 💫 Ask me to write, brainstorm, explain anything, roast your captions, generate images, or just vibe — I'm here for all of it 🎉",
           time: "now",
           isMine: false,
         },
@@ -2606,6 +2627,28 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     if (!overrideText) setInput("");
     setReplyTo(null);
 
+    if (activeThread?.isHelpCenter) {
+      setIsTyping(true);
+      setTimeout(async () => {
+        const reply = await generateText(
+          text,
+          280,
+          "You are Whales 🐋, the Reelsy Help Center. Help users with: account setup, login issues, password reset, privacy settings (friendPolicy, messagingPolicy), how to post/like/comment/share, friend requests, notifications, DMs, and any Reelsy feature. Be warm, concise (2-3 sentences), and use emojis. If unsure, say 'Feel free to email support@reelsy.app 💌'"
+        );
+        setIsTyping(false);
+        playMsgSound("receive");
+        setMessages((p) => ({
+          ...p,
+          [activeId!]: [...(p[activeId!] || []), {
+            id: Date.now() + 1, fromName: "Help Center", content: reply,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), isMine: false,
+          }],
+        }));
+        setThreads((p) => p.map((t) => t.id === activeId ? { ...t, lastMessage: reply.slice(0, 50), time: "now" } : t));
+      }, 1000 + Math.random() * 400);
+      return;
+    }
+
     if (activeThread?.isMeraAi) {
       setIsTyping(true);
       setTimeout(async () => {
@@ -2623,7 +2666,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
           : {
               id: Date.now() + 1,
               fromName: "Mera",
-              content: await generateText(`Reply as Mera, Reelsy's AI assistant. Be helpful, concise, and practical.\n\nUser: ${text}`, 260),
+              content: await generateText(`You are Mera ✨, Reelsy's AI bestie! You're warm, playful, witty, and genuinely excited to help 💫 Use emojis naturally (not excessively). Be conversational — like texting a brilliant, funny friend. You can write captions, brainstorm ideas, explain things, give advice, roast drafts, talk about anything. Keep it punchy (2-4 sentences) unless the person clearly wants depth. Never be stiff or robotic.\n\nUser message: ${text}`, 300),
               time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               isMine: false,
             };
@@ -2860,8 +2903,67 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     return emojiRegex.test(trimmed) && trimmed.length <= 8;
   };
 
+  // Watch localStorage for DM opens triggered from profile pages
+  useEffect(() => {
+    const openPendingDm = async () => {
+      const otherUsername = localStorage.getItem("reelsy_open_dm_username");
+      if (!otherUsername) return;
+      localStorage.removeItem("reelsy_open_dm_username");
+      const otherDisplayName = localStorage.getItem("reelsy_open_dm_displayName") || otherUsername;
+      const otherAvatar = localStorage.getItem("reelsy_open_dm_avatar") || undefined;
+      localStorage.removeItem("reelsy_open_dm_displayName");
+      localStorage.removeItem("reelsy_open_dm_avatar");
+
+      const myUsername = me?.username?.replace(/^@/, "");
+      if (!myUsername) return;
+
+      try {
+        const { conversation } = await import("@/lib/api").then(m => m.api.messages.getOrCreateConversation(
+          myUsername, otherUsername.replace(/^@/, "")
+        ));
+        if (conversation?.id) {
+          setActiveDmConv({
+            id: conversation.id,
+            otherUsername: otherUsername.replace(/^@/, ""),
+            otherDisplayName,
+            otherAvatar,
+          });
+        }
+      } catch (err: any) {
+        if (err?.status === 403) {
+          // FRIENDS_ONLY — show locked UI
+          setActiveDmConv({
+            id: "blocked-" + otherUsername,
+            otherUsername: otherUsername.replace(/^@/, ""),
+            otherDisplayName,
+            otherAvatar,
+          });
+        }
+      }
+    };
+
+    openPendingDm();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "reelsy_open_dm_username") openPendingDm();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [me]);
+
   return (
     <div className="absolute inset-0 bg-background flex flex-col overflow-hidden">
+      {/* Real DM View overlay */}
+      {activeDmConv && (
+        <RealDmView
+          conversationId={activeDmConv.id.startsWith("blocked-") ? "" : activeDmConv.id}
+          otherUsername={activeDmConv.otherUsername}
+          otherDisplayName={activeDmConv.otherDisplayName}
+          otherAvatar={activeDmConv.otherAvatar}
+          isBlocked={activeDmConv.id.startsWith("blocked-")}
+          onBack={() => setActiveDmConv(null)}
+        />
+      )}
+
       {/* ---- THREAD LIST ---- */}
       <AnimatePresence>
         {!activeId && !showGroupCreate && (
@@ -2979,7 +3081,14 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                       <motion.button key={conv.id}
                         initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                         whileTap={{ backgroundColor: "hsl(var(--secondary) / 0.5)" }}
-                        onClick={() => {}}
+                        onClick={() => {
+                          setActiveDmConv({
+                            id: conv.id,
+                            otherUsername: otherUser?.username || conv.id,
+                            otherDisplayName: otherName,
+                            otherAvatar: otherUser?.avatar_url || undefined,
+                          });
+                        }}
                         className="w-full flex items-center gap-3 px-4 py-3 text-left">
                         <div className="relative shrink-0">
                           <div className="w-11 h-11 rounded-full overflow-hidden bg-secondary">
@@ -3032,6 +3141,8 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                       <div className="w-11 h-11 rounded-full overflow-hidden bg-secondary">
                         {thread.isReelsy ? (
                           <img src={reelsyLogo} alt="Reelsy" className="w-full h-full object-cover" />
+                                        ) : thread.isHelpCenter ? (
+                          <div className="w-full h-full bg-gradient-to-br from-sky-500 to-violet-600 flex items-center justify-center text-[18px]">🐋</div>
                         ) : thread.isMeraAi ? (
                           <MeraLogo />
                         ) : thread.isSMS ? (
@@ -3069,6 +3180,9 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                             <div className="shrink-0 w-3.5 h-3.5 rounded-full bg-foreground flex items-center justify-center">
                               <Check className="w-2 h-2 text-background" strokeWidth={3} />
                             </div>
+                          )}
+                          {thread.isHelpCenter && (
+                            <div className="shrink-0 px-1 rounded-sm bg-sky-500/15 text-sky-600 text-[8px] font-bold">HELP</div>
                           )}
                           {thread.isMeraAi && (
                             <div className="shrink-0 px-1 rounded-sm bg-violet-500/15 text-violet-600 text-[8px] font-bold">AI</div>
@@ -3113,18 +3227,21 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
               </motion.button>
               <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary shrink-0">
                 {activeThread.isReelsy ? <img src={reelsyLogo} alt="Reelsy" className="w-full h-full object-cover" />
-                  : activeThread.isSMS ? <div className="w-full h-full bg-green-500/15 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-green-600" /></div>
-                    : activeThread.isGroup ? <div className="w-full h-full bg-secondary flex items-center justify-center"><Users className="w-4 h-4 text-muted-foreground" /></div>
-                      : (() => { const bot = BOTS.find((b) => b.id === activeThread.botId); return bot ? <img src={getBotAvatarUrl(bot)} className="w-full h-full object-cover" alt="" /> : null; })()
+                  : activeThread.isHelpCenter ? <div className="w-full h-full bg-gradient-to-br from-sky-500 to-violet-600 flex items-center justify-center text-[16px]">🐋</div>
+                    : activeThread.isMeraAi ? <MeraLogo />
+                      : activeThread.isSMS ? <div className="w-full h-full bg-green-500/15 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-green-600" /></div>
+                        : activeThread.isGroup ? <div className="w-full h-full bg-secondary flex items-center justify-center"><Users className="w-4 h-4 text-muted-foreground" /></div>
+                          : (() => { const bot = BOTS.find((b) => b.id === activeThread.botId); return bot ? <img src={getBotAvatarUrl(bot)} className="w-full h-full object-cover" alt="" /> : null; })()
                 }
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-[13px] truncate">{activeThread.name}</p>
                 <p className="text-[10px] text-muted-foreground">
                   {activeThread.isReelsy ? "Official account"
-                    : activeThread.isSMS ? "SMS Gateway"
-                      : activeThread.isGroup ? `${activeThread.members?.length} members`
-                        : "Active recently"}
+                    : activeThread.isHelpCenter ? "AI Help Center · Always available 🐋"
+                      : activeThread.isSMS ? "SMS Gateway"
+                        : activeThread.isGroup ? `${activeThread.members?.length} members`
+                          : "Active recently"}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">

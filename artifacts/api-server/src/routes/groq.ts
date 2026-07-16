@@ -10,10 +10,14 @@ router.post("/groq", async (req, res) => {
       return res.status(503).json({ error: "GROQ_API_KEY is not configured" });
     }
 
-    const { prompt, max_tokens = 220, model = process.env.GROQ_MODEL || "llama-3.1-8b-instant" } = req.body || {};
+    const { prompt, systemPrompt, max_tokens = 220, model = process.env.GROQ_MODEL || "llama-3.1-8b-instant" } = req.body || {};
     if (!prompt || typeof prompt !== "string") {
       return res.status(400).json({ error: "prompt is required" });
     }
+
+    const system = systemPrompt && typeof systemPrompt === "string"
+      ? systemPrompt
+      : "You are Mera ✨, Reelsy's AI bestie! You're warm, playful, witty. Use emojis naturally. Be conversational and concise.";
 
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -24,10 +28,10 @@ router.post("/groq", async (req, res) => {
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: "You are Mera, Reelsy's helpful AI assistant. Be concise, warm, and useful." },
+          { role: "system", content: system },
           { role: "user", content: prompt },
         ],
-        temperature: 0.7,
+        temperature: 0.75,
         max_tokens: Math.min(Number(max_tokens) || 220, 1000),
       }),
     });
