@@ -7,3 +7,7 @@
 - [Notification broadcast](notification-broadcast.md) — broadcastNotification() in supabase.ts sends instant push; all notification creation sites must call it after MongoDB insert; non-fatal if Supabase not ready
 - [Media storage](media-storage.md) — media.ts uses Supabase Storage bucket "media" (public); multer memoryStorage + upload buffer; PostComposer uploads base64/blob URLs before posting
 - [Messaging vs friend policy](messaging-policy.md) — messagingPolicy (everyone/friends-only) is separate from friendPolicy (open/request-only); messages.ts checks messagingPolicy with fallback to friendPolicy for legacy users
+- [useMessages hook signature](usemessages-signature.md) — useMessages(conversationId) takes only 1 arg; sendMessage(content: string, type?) takes a string not an object; getOrCreateConversation takes a ConversationInitData object not two strings
+- [AppPhase values](appphase-values.md) — suspension routes to 'account-suspended', ban to 'banned'; 'suspended' is NOT a valid AppPhase and will cause a TS error
+- [Report/suspension system](report-suspension.md) — engagement.ts POST /:postId/report dedupes per reporter; increments reportCount on author; suspends at 5+ reports (separate from addStrike 3-strike security system)
+- [Signin abuse detection](signin-abuse.md) — auth.ts email signin tracks signinHistory (rolling 20); 6+ signins in 10min triggers addStrike('rapid_signin_cycling'); suspended/banned users blocked at signin with 403

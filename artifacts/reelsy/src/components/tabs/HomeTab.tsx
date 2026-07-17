@@ -712,7 +712,7 @@ const PostCard = ({
     return () => clearInterval(timer);
   }, [notInterestedActive, countdown]);
 
-  const submitReport = () => {
+  const submitReport = async () => {
     const effectiveReason = reportReason === "Other" ? customReason.trim() : reportReason;
     if (!effectiveReason) return;
     setIsSubmittingReport(true);
@@ -726,6 +726,14 @@ const PostCard = ({
     steps.forEach(({ pct, delay }) => {
       setTimeout(() => setReportProgress(pct), delay);
     });
+    // Fire real API report (non-blocking — UX continues regardless)
+    if (user?.username && !post.isAd) {
+      api.engagement.reportPost(post.id, {
+        reporterUsername: user.username,
+        reporterUserId: user.supabaseId || user.username,
+        reason: effectiveReason,
+      }).catch(() => {});
+    }
     setTimeout(() => {
       setIsSubmittingReport(false);
       setReportDone(true);
@@ -761,7 +769,7 @@ const PostCard = ({
       ? (post.adAvatar || reelsyLogo)
     : (authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.id}&backgroundColor=b6e3f4`);
   const displayName = isUserPost ? (currentUserNickname || "You") : isSponsoredPost ? (post.adBrandName || "Sponsor") : (authorName || "User");
-  const displayHandle = isUserPost ? (user?.username ? `${user.username}` : "@you") : isSponsoredPost ? (post.adHandle || "@sponsor") : (post.id ? `@user` : "@user");
+  const displayHandle = isUserPost ? (user?.username ? `@${user.username}` : "@you") : isSponsoredPost ? (post.adHandle || "@sponsor") : (post.authorUsername ? `@${post.authorUsername}` : "@user");
   const adMediaSrc = getAdMediaSrc(post);
 
   if (hidden) return null;
@@ -1658,6 +1666,13 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
           media: Array.isArray(postData.media) ? postData.media : postData.media ? [postData.media] : undefined,
           music: postData.music,
           location: postData.location,
+          reshare: reshareTarget ? {
+            originalPostId: reshareTarget.id,
+            authorName: reshareTarget.authorName || reshareTarget.authorHandle || "User",
+            authorHandle: reshareTarget.authorHandle || "",
+            content: reshareTarget.content,
+            media: reshareTarget.media,
+          } : undefined,
         });
         // Replace the temp local ID with the real MongoDB ID so polling dedupes correctly
         const realId = String(created?._id || created?.id || newPost.id);
@@ -2031,7 +2046,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
             onPost={handleNewPost}
             resharePost={reshareTarget ? {
               authorName: reshareTarget.authorName || reshareTarget.authorHandle || "User",
-              authorHandle: reshareTarget.authorHandle ? `@${reshareTarget.authorHandle}` : "@user",
+              authorHandle: reshareTarget.authorHandle ? (reshareTarget.authorHandle.startsWith("@") ? reshareTarget.authorHandle : `@${reshareTarget.authorHandle}`) : "@user",
               content: reshareTarget.content,
               media: reshareTarget.media,
             } : undefined}

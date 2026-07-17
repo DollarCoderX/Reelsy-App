@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AvatarCustomizer from "../AvatarCustomizer";
+import AvatarBuilder from "../AvatarBuilder";
 import { VerificationModal } from "../VerificationModal";
 import reelsyLogo from "@assets/db1645cc1ed95625a5dff41ee9a0f164_1778235733181.jpg";
 
@@ -1580,6 +1581,7 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
   const [twoFA, setTwoFA] = useState(false);
   const [betaFeatures, setBetaFeatures] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [avatarBuilderOpen, setAvatarBuilderOpen] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [sheet, setSheet] = useState<"subscription" | "virtualNumber" | "editProfile" | "privacy" | "notifications" | "retention" | "language" | "help" | "support" | "terms" | "rate" | "password" | "verification" | "accounts" | null>(null);
 
@@ -1704,6 +1706,7 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
             <SettingRow icon={Mail} label={t("Email")} value={user?.email ? user.email.replace(/(.{2}).*(@.*)/, "$1…$2") : undefined} />
             <PhoneNumberRow />
             <SettingRow icon={Users} label="Accounts" value={tier === "free" ? "Pro" : undefined} onPress={() => setSheet("accounts")} />
+            <SettingRow icon={UserCircle2} label="Avatar Builder" value={tier === "free" ? "Pro" : "Custom"} onPress={() => setAvatarBuilderOpen(true)} />
             <SettingRow icon={VerifiedIcon} label={t("Get Verified Badge")} onPress={() => setSheet("verification")} />
             <SettingRow icon={Shield} label={t("Privacy")} onPress={() => setSheet("privacy")} />
           </Section>
@@ -1801,6 +1804,16 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
           <AvatarCustomizer onClose={() => setAvatarOpen(false)} onSave={(url) => {
             setUser(user ? { ...user, avatar: url } : null);
             setAvatarOpen(false);
+          }} />
+        )}
+      </AnimatePresence>
+
+      {/* Avatar Builder (Pro) */}
+      <AnimatePresence>
+        {avatarBuilderOpen && (
+          <AvatarBuilder onClose={() => setAvatarBuilderOpen(false)} onSave={(url) => {
+            setUser(user ? { ...user, avatar: url } : null);
+            setAvatarBuilderOpen(false);
           }} />
         )}
       </AnimatePresence>

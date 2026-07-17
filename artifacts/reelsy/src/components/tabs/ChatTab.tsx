@@ -2918,9 +2918,16 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
       if (!myUsername) return;
 
       try {
-        const { conversation } = await import("@/lib/api").then(m => m.api.messages.getOrCreateConversation(
-          myUsername, otherUsername.replace(/^@/, "")
-        ));
+        const { conversation } = await import("@/lib/api").then(m => m.api.messages.getOrCreateConversation({
+          myUserId: me?.supabaseId || myUsername,
+          myUsername,
+          myDisplayName: me?.nickname,
+          myAvatar: me?.avatar,
+          otherUserId: otherUsername.replace(/^@/, ""),
+          otherUsername: otherUsername.replace(/^@/, ""),
+          otherDisplayName,
+          otherAvatar,
+        }));
         if (conversation?.id) {
           setActiveDmConv({
             id: conversation.id,

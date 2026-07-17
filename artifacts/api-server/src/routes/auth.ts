@@ -270,6 +270,40 @@ router.post('/signin-email', async (req, res) => {
       return res.status(401).json({ error: 'INVALID_PASSWORD', message: 'Incorrect password' });
     }
 
+    // Check for suspension/ban
+    if (user.isSuspended) {
+      return res.status(403).json({
+        error: 'ACCOUNT_SUSPENDED',
+        message: user.suspensionDetails || 'Your account has been suspended.',
+        suspensionReason: user.suspensionReason,
+      });
+    }
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'ACCOUNT_BANNED', message: user.banReason || 'Your account has been banned.' });
+    }
+
+    // Rapid signin detection — track signin timestamps to catch abuse
+    const now = new Date();
+    const recentSignins: Date[] = ((user.signinHistory || []) as string[])
+      .map((ts: string) => new Date(ts))
+      .filter((d: Date) => (now.getTime() - d.getTime()) < 10 * 60 * 1000); // last 10 min
+
+    if (recentSignins.length >= 6) {
+      // 6+ signins in 10 minutes — add a strike
+      const { addStrike } = await import('../lib/suspension');
+      await addStrike(user._id.toString(), 'rapid_signin_cycling').catch(() => {});
+    }
+
+    // Rolling 20-entry signin history
+    const updatedHistory = [
+      ...((user.signinHistory || []) as string[]).slice(-19),
+      now.toISOString(),
+    ];
+    await usersCollection.updateOne(
+      { _id: user._id },
+      { $set: { signinHistory: updatedHistory, lastSignInAt: now } }
+    );
+
     const token = generateToken({ userId: user._id, username: user.username, email: user.userEmail });
 
     return res.json({
@@ -285,6 +319,11 @@ router.post('/signin-email', async (req, res) => {
         friendPolicy: user.friendPolicy,
         messagingPolicy: user.messagingPolicy,
         interests: user.interests,
+        isSuspended: user.isSuspended || false,
+        suspensionReason: user.suspensionReason,
+        suspensionDetails: user.suspensionDetails,
+        isBanned: user.isBanned || false,
+        banReason: user.banReason,
       },
       token,
     });
@@ -339,6 +378,14 @@ router.post('/signin-google', async (req, res) => {
           { $set: { profileImage, updatedAt: new Date() } }
         );
         profileImageToReturn = profileImage;
+      }
+
+      // Always confirm email for Google sign-ins so Supabase doesn't auto-ban
+      try {
+        await ensureSupabaseInitialized();
+        await confirmUserEmail(supabaseUser.id);
+      } catch (confirmErr) {
+        console.warn('Could not confirm email for existing Google user:', confirmErr);
       }
 
       const token = generateToken({ userId: existingUser._id, username: existingUser.username, email });

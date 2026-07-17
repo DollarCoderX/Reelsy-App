@@ -62,17 +62,30 @@ const AuthCallback = () => {
         setUser({
           username: result.user.username,
           nickname: result.user.displayName,
-          age: result.user.age || 0, // Age from Google or 0 if not available
+          age: result.user.age || 0,
           email: result.user.email,
           avatar: result.user.profileImage || undefined,
           supabaseId: result.user.supabaseId,
           isSuspended: result.user.isSuspended || false,
           suspensionReason: result.user.suspensionReason,
           suspensionDetails: result.user.suspensionDetails,
+          isBanned: result.user.isBanned || false,
+          banReason: result.user.banReason,
         });
 
-        // Route to interests selection after Google OAuth (not directly to main)
-        setAppPhase('auth-interests');
+        // If suspended or banned, route to appropriate screen instead of main
+        if (result.user.isSuspended) {
+          setAppPhase('account-suspended');
+          return;
+        }
+        if (result.user.isBanned) {
+          setAppPhase('banned');
+          return;
+        }
+
+        // Returning users go straight to main; new users see interests selection
+        const isNewUser = result.message === 'User created successfully' || result.message?.includes('created');
+        setAppPhase(isNewUser ? 'auth-interests' : 'main');
       } catch (err) {
         console.error('Auth callback error:', err);
         toast({

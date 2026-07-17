@@ -166,7 +166,7 @@ router.get('/posts/trending', async (req, res) => {
 // POST /api/posts - create a post
 router.post('/posts', async (req, res) => {
   try {
-    const { authorUsername, authorDisplayName, authorAvatar, content, type, media, music, location } = req.body;
+    const { authorUsername, authorDisplayName, authorAvatar, content, type, media, music, location, reshare } = req.body;
 
     if (!authorUsername || !content) {
       return res.status(400).json({ error: 'authorUsername and content are required' });
@@ -187,6 +187,7 @@ router.post('/posts', async (req, res) => {
       views: 0,
       music,
       location,
+      reshare: reshare || undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

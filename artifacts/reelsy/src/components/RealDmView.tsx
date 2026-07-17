@@ -4,9 +4,10 @@
  */
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, Send, Loader2, Lock, MessageCircle } from "lucide-react";
+import { ChevronLeft, Send, Loader2, Lock, Smile } from "lucide-react";
 import { useMessages } from "@/hooks/useMessages";
 import { useAppContext } from "@/context/AppContext";
+import { EmojiStickerPicker } from "@/components/EmojiStickerPicker";
 
 interface RealDmViewProps {
   conversationId: string;
@@ -14,7 +15,8 @@ interface RealDmViewProps {
   otherDisplayName: string;
   otherAvatar?: string;
   isHelpCenter?: boolean;
-  isFriendsOnly?: boolean; // recipient has friends-only messaging but we're not friends
+  isFriendsOnly?: boolean;
+  isBlocked?: boolean;
   onBack: () => void;
 }
 
@@ -25,14 +27,16 @@ const RealDmView = ({
   otherAvatar,
   isHelpCenter,
   isFriendsOnly,
+  isBlocked: isBlockedProp,
   onBack,
 }: RealDmViewProps) => {
   const { user } = useAppContext();
   const userId = user?.supabaseId || user?.username || "";
-  const { messages, loading, sendMessage, isOtherTyping } = useMessages(conversationId, userId);
+  const { messages, loading, sendMessage, isOtherTyping } = useMessages(conversationId);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [blocked, setBlocked] = useState(isFriendsOnly || false);
+  const [blocked, setBlocked] = useState(isFriendsOnly || isBlockedProp || false);
+  const [showPicker, setShowPicker] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,13 +51,7 @@ const RealDmView = ({
     setInput("");
     setIsSending(true);
     try {
-      await sendMessage({
-        senderId: userId,
-        senderUsername: user?.username?.replace(/^@/, "") || "",
-        senderAvatar: user?.avatar,
-        content: text,
-        messageType: "text",
-      });
+      await sendMessage(text, "text");
     } catch (err: any) {
       if (err?.code === "FRIENDS_ONLY" || String(err).includes("403")) {
         setBlocked(true);
@@ -167,23 +165,49 @@ const RealDmView = ({
           </div>
         </div>
       ) : (
-        <div className="shrink-0 px-3 pt-2 pb-6 flex items-end gap-2">
-          <div className="flex-1 flex items-end bg-secondary rounded-3xl px-3.5 py-2 min-h-[42px]">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              placeholder={isHelpCenter ? "Ask Help Center anything…" : "Message…"}
-              rows={1}
-              style={{ fontSize: 15, resize: "none" }}
-              className="flex-1 bg-transparent outline-none text-[14px] font-medium placeholder:text-muted-foreground/50 max-h-24 overflow-y-auto self-center"
-            />
+        <div className="shrink-0 relative">
+          {/* Emoji/sticker picker */}
+          <AnimatePresence>
+            {showPicker && (
+              <EmojiStickerPicker
+                onSelect={(content, type) => {
+                  if (type === "sticker") {
+                    // Send sticker as its own message immediately
+                    setInput("");
+                    setIsSending(true);
+                    sendMessage(content, "text").finally(() => setIsSending(false));
+                  } else {
+                    setInput((prev) => prev + content);
+                  }
+                }}
+                onClose={() => setShowPicker(false)}
+              />
+            )}
+          </AnimatePresence>
+          <div className="px-3 pt-2 pb-6 flex items-end gap-2">
+            {/* Emoji button */}
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowPicker((v) => !v)}
+              className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${showPicker ? "bg-foreground text-background" : "bg-secondary text-muted-foreground"}`}>
+              <Smile className="w-4 h-4" />
+            </motion.button>
+            <div className="flex-1 flex items-end bg-secondary rounded-3xl px-3.5 py-2 min-h-[42px]">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                onFocus={() => setShowPicker(false)}
+                placeholder={isHelpCenter ? "Ask Help Center anything…" : "Message…"}
+                rows={1}
+                style={{ fontSize: 15, resize: "none" }}
+                className="flex-1 bg-transparent outline-none text-[14px] font-medium placeholder:text-muted-foreground/50 max-h-24 overflow-y-auto self-center"
+              />
+            </div>
+            <motion.button whileTap={{ scale: 0.85 }} onClick={handleSend}
+              disabled={!input.trim() || isSending}
+              className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center shrink-0 disabled:opacity-40">
+              {isSending ? <Loader2 className="w-4 h-4 text-background animate-spin" /> : <Send className="w-4 h-4 text-background" strokeWidth={2} />}
+            </motion.button>
           </div>
-          <motion.button whileTap={{ scale: 0.85 }} onClick={handleSend}
-            disabled={!input.trim() || isSending}
-            className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center shrink-0 disabled:opacity-40">
-            {isSending ? <Loader2 className="w-4 h-4 text-background animate-spin" /> : <Send className="w-4 h-4 text-background" strokeWidth={2} />}
-          </motion.button>
         </div>
       )}
     </div>

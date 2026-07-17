@@ -257,4 +257,65 @@ router.get('/:postId/saved/:userId', async (req, res) => {
   }
 });
 
+// POST /engagement/:postId/report — report a post; suspends author after 5 unique reports
+router.post('/:postId/report', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { reporterUsername, reporterUserId, reason } = req.body;
+
+    if (!reporterUsername || !reason) {
+      return res.status(400).json({ error: 'reporterUsername and reason are required' });
+    }
+
+    const { getMongoDBCollection, getUsersCollection } = await import('../lib/mongodb');
+    const postsCollection = await getMongoDBCollection('posts');
+    const reportsCollection = await getMongoDBCollection('post_reports');
+
+    let postAuthorUsername: string | undefined;
+
+    // Only track valid MongoDB post IDs (not ad-*, user-* fake IDs)
+    const isValidObjectId = /^[a-f\d]{24}$/i.test(postId);
+    if (isValidObjectId) {
+      const { ObjectId } = await import('mongodb');
+      const post = await postsCollection.findOne({ _id: new ObjectId(postId) });
+      postAuthorUsername = (post as any)?.authorUsername;
+
+      // Dedupe: one report per reporter per post
+      const alreadyReported = await reportsCollection.findOne({ postId, reporterUsername });
+      if (!alreadyReported) {
+        await reportsCollection.insertOne({ postId, reporterUsername, reporterUserId, reason, createdAt: new Date() });
+
+        // Count total unique reporters for this post's author
+        if (postAuthorUsername) {
+          const usersCollection = await getUsersCollection();
+          const user = await usersCollection.findOne({ username: postAuthorUsername });
+          if (user) {
+            const newReportCount = ((user as any).reportCount || 0) + 1;
+            const shouldSuspend = newReportCount >= 5;
+
+            const updateData: any = { reportCount: newReportCount, updatedAt: new Date() };
+            if (shouldSuspend && !(user as any).isSuspended) {
+              updateData.isSuspended = true;
+              updateData.suspensionReason = 'community_reports';
+              updateData.suspensionDetails = `Your account was suspended because it received ${newReportCount} reports from the community for violating Reelsy guidelines. You may appeal this decision.`;
+              updateData.suspendedAt = new Date();
+            }
+            await usersCollection.updateOne({ username: postAuthorUsername }, { $set: updateData });
+
+            if (shouldSuspend && !(user as any).isSuspended) {
+              return res.json({ message: 'Report submitted', suspended: true });
+            }
+          }
+        }
+      }
+    }
+
+    return res.json({ message: 'Report submitted', suspended: false });
+  } catch (error) {
+    req.log.error(error, 'Error reporting post');
+    // Non-fatal — always return success to user
+    return res.json({ message: 'Report submitted', suspended: false });
+  }
+});
+
 export default router;

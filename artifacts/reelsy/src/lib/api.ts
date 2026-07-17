@@ -162,6 +162,12 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ userId }),
       }),
+
+    reportPost: (postId: string, data: { reporterUsername: string; reporterUserId: string; reason: string }) =>
+      request<{ message: string; suspended?: boolean }>(`/engagement/${postId}/report`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   // ─── Users ────────────────────────────────────────────────────────────────
@@ -411,6 +417,13 @@ export interface CreatePostData {
   media?: string | string[];
   music?: { title: string; artist: string; url: string };
   location?: { name: string; lat?: number; lng?: number };
+  reshare?: {
+    originalPostId?: string;
+    authorName: string;
+    authorHandle: string;
+    content: string;
+    media?: string | string[];
+  };
 }
 
 export interface AddCommentData {

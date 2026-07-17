@@ -11,6 +11,7 @@ const TYPE_ICON: Record<AppNotification["type"], React.ReactNode> = {
   save: <LottieEmoji emoji="🔖" size={18} />,
   friend_request: <UserPlus className="w-4 h-4 text-blue-500" />,
   friend_accepted: <UserCheck className="w-4 h-4 text-violet-500" />,
+  profile_view: <LottieEmoji emoji="👀" size={18} />,
 };
 
 const TYPE_TEXT: Record<AppNotification["type"], string> = {
@@ -20,6 +21,7 @@ const TYPE_TEXT: Record<AppNotification["type"], string> = {
   save: "saved your post",
   friend_request: "sent you a friend request",
   friend_accepted: "accepted your friend request",
+  profile_view: "viewed your profile",
 };
 
 export const NotificationToast = () => {
