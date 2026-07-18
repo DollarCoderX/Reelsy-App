@@ -30,6 +30,7 @@ import { hasSeenFeatureIntro, markFeatureIntroSeen } from "@/lib/featureIntro";
 import { generateText } from "@/lib/ai";
 import RealDmView from "@/components/RealDmView";
 import UserProfile from "@/components/UserProfile";
+import { NewChatSheet } from "@/components/NewChatSheet";
 import { LottieEmoji } from "@/components/LottieEmoji";
 import { EmojiText } from "@/components/EmojiText";
 
@@ -2307,6 +2308,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [showGroupCreate, setShowGroupCreate] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [showThreadMore, setShowThreadMore] = useState(false);
   const [contextMsg, setContextMsg] = useState<ChatMessage | null>(null);
@@ -3045,7 +3047,7 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                             <motion.div initial={{ opacity: 0, scale: 0.9, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                               exit={{ opacity: 0, scale: 0.9 }} transition={{ type: "spring", stiffness: 450, damping: 26 }}
                               className="absolute right-0 top-10 z-40 bg-background rounded-2xl shadow-2xl overflow-hidden w-44 border border-secondary/60">
-                              <button onClick={() => setShowOptions(false)} className="w-full px-4 py-3 text-left text-[13px] font-medium">New Chat</button>
+                              <button onClick={() => { setShowOptions(false); setShowNewChat(true); }} className="w-full px-4 py-3 text-left text-[13px] font-medium">New Chat</button>
                               <button onClick={() => { setShowOptions(false); setShowGroupCreate(true); }} className="w-full px-4 py-3 text-left text-[13px] font-medium border-t border-secondary/40">New Chain</button>
                             </motion.div>
                           </>
@@ -4378,6 +4380,40 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
       <AnimatePresence>
         {forwardMsg && (
           <ForwardSheet msg={forwardMsg} threads={threads} onForward={forwardToThread} onClose={() => setForwardMsg(null)} />
+        )}
+      </AnimatePresence>
+
+      {/* New Chat Sheet */}
+      <AnimatePresence>
+        {showNewChat && (
+          <NewChatSheet
+            existingChatUsernames={dmConversations.map((c: any) => c.participants?.find((p: any) => p.username !== me?.username?.replace(/^@/, ""))?.username ?? "").filter(Boolean)}
+            onStartChat={async (username, displayName, avatar) => {
+              const myUsername = me?.username?.replace(/^@/, "");
+              if (!myUsername) return;
+              try {
+                const { api } = await import("@/lib/api");
+                const { conversation } = await api.messages.getOrCreateConversation({
+                  myUserId: me?.supabaseId || myUsername,
+                  myUsername,
+                  myDisplayName: me?.nickname,
+                  myAvatar: me?.avatar,
+                  otherUserId: username,
+                  otherUsername: username,
+                  otherDisplayName: displayName,
+                  otherAvatar: avatar,
+                });
+                if (conversation?.id) {
+                  setActiveDmConv({ id: conversation.id, otherUsername: username, otherDisplayName: displayName, otherAvatar: avatar });
+                }
+              } catch (err: any) {
+                if (err?.status === 403) {
+                  setActiveDmConv({ id: "blocked-" + username, otherUsername: username, otherDisplayName: displayName, otherAvatar: avatar });
+                }
+              }
+            }}
+            onClose={() => setShowNewChat(false)}
+          />
         )}
       </AnimatePresence>
     </div>

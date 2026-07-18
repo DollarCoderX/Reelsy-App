@@ -497,7 +497,7 @@ router.post('/signin-google', async (req, res) => {
 // Endpoint to update user profile
 router.post('/profile/update', async (req, res) => {
   try {
-    const { username, displayName, profileImage, age, interests } = req.body;
+    const { username, displayName, profileImage, age, interests, phone, bio } = req.body;
 
     if (!username) {
       return res.status(400).json({ error: 'Username is required' });
@@ -511,6 +511,8 @@ router.post('/profile/update', async (req, res) => {
     if (profileImage) updateData.profileImage = profileImage;
     if (age !== undefined) updateData.age = age;
     if (interests && Array.isArray(interests)) updateData.interests = interests;
+    if (phone !== undefined) updateData.phone = String(phone).replace(/\D/g, '');
+    if (bio !== undefined) updateData.bio = String(bio).slice(0, 200);
 
     const result = await usersCollection.updateOne(
       { username: cleanUsername },
@@ -555,22 +557,34 @@ router.post('/tier/update', async (req, res) => {
   }
 });
 
+
 // Endpoint to get user profile
 router.get('/profile/:username', async (req, res) => {
   try {
     const { username } = req.params;
-    const cleanUsername = username.replace(/^@/, '');
+    const cleanUsername = username.replace(/^@/, '').trim();
+    if (!cleanUsername) return res.status(400).json({ error: 'Username is required' });
 
     const usersCollection = await getUsersCollection();
-    const mongoUser = await usersCollection.findOne({ username: cleanUsername });
-
+    // Try exact match first, then lowercased
+    let mongoUser: any = await usersCollection.findOne({ username: cleanUsername });
+    if (!mongoUser) {
+      mongoUser = await usersCollection.findOne({ username: cleanUsername.toLowerCase() });
+    }
     if (!mongoUser) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const supabaseUser = await getSupabaseUser(username);
+    // Non-fatal Supabase lookup for tier info
+    let supabaseUser: any = null;
+    try {
+      await ensureSupabaseInitialized();
+      supabaseUser = await getSupabaseUser(cleanUsername);
+    } catch {
+      // Supabase unavailable — continue with MongoDB data only
+    }
 
-    const isBanned = !!((mongoUser as any).banned || mongoUser.isBanned);
+    const isBanned = !!(mongoUser.banned || mongoUser.isBanned);
 
     return res.status(200).json({
       id: mongoUser._id,
@@ -578,9 +592,12 @@ router.get('/profile/:username', async (req, res) => {
       displayName: mongoUser.displayName,
       email: mongoUser.userEmail,
       profileImage: mongoUser.profileImage,
+      bio: (mongoUser as any).bio,
       age: mongoUser.age,
       interests: mongoUser.interests,
-      tier: supabaseUser?.tier || 'free',
+      tier: supabaseUser?.tier || mongoUser.tier || 'free',
+      friendPolicy: mongoUser.friendPolicy || 'open',
+      messagingPolicy: mongoUser.messagingPolicy || 'everyone',
       isSuspended: mongoUser.isSuspended || false,
       suspensionReason: mongoUser.suspensionReason,
       suspensionDetails: mongoUser.suspensionDetails,
@@ -597,7 +614,8 @@ router.get('/profile/:username', async (req, res) => {
   }
 });
 
-// Check if user account is suspended
+// Endpoint to update user profile
+
 router.get('/check-suspension/:username', async (req, res) => {
   try {
     const { username } = req.params;
@@ -1009,29 +1027,26 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 // Get public profile by username
-router.get('/profile/:username', async (req, res) => {
+// Search user by phone number
+router.get('/search-by-phone', async (req, res) => {
   try {
-    const { username } = req.params;
-    if (!username) {
-      return res.status(400).json({ error: 'Username is required' });
-    }
+    const { phone } = req.query;
+    if (!phone) return res.status(400).json({ error: 'phone required' });
+    const digits = (phone as string).replace(/\D/g, '');
+    if (digits.length < 7) return res.json({ found: false });
     const usersCollection = await getUsersCollection();
-    const user = await usersCollection.findOne({ username: username.toLowerCase() });
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const user = await usersCollection.findOne({ phone: { $regex: digits } });
+    if (!user) return res.json({ found: false });
     return res.json({
+      found: true,
       username: user.username,
       displayName: user.displayName,
       profileImage: user.profileImage,
-      bio: user.bio,
-      tier: user.tier || 'free',
-      createdAt: user.createdAt,
     });
-  } catch (error) {
-    req.log.error(error, 'Error fetching profile');
-    return res.status(500).json({ error: 'Failed to fetch profile' });
+  } catch {
+    return res.status(500).json({ error: 'Search failed' });
   }
 });
+
 
 export default router;

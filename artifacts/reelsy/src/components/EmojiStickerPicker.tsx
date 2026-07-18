@@ -2,12 +2,13 @@
  * EmojiStickerPicker — WhatsApp-style emoji & sticker panel for DMs.
  * Tab 1: Emoji categories (Unicode, no external API needed)
  * Tab 2: Sticker packs (fun illustrated stickers via free Giphy stickers fallback to built-in)
- * Pro users get a "My Stickers" tab for custom avatar stickers.
+ * Tab 3: My Bitmoji — user's custom avatar sticker sheet
  */
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Smile, Star, Zap, Heart, Coffee, Globe, Search } from "lucide-react";
+import { Smile, Star, Search, Sparkles } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
+import { useBitmojiConfig, BitmojiStickerSheet, BitmojiBuilder } from "@/components/BitmojiAvatar";
 
 // ── Emoji data ──────────────────────────────────────────────────────────────
 const EMOJI_CATEGORIES = [
@@ -161,6 +162,12 @@ export const EmojiStickerPicker = ({ onSelect, onClose }: EmojiStickerPickerProp
         >
           <Star className="w-3.5 h-3.5" /> Stickers
         </button>
+        <button
+          onClick={() => setTab("bitmoji")}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] font-bold transition-all ${tab === "bitmoji" ? "bg-foreground text-background" : "text-muted-foreground"}`}
+        >
+          <Sparkles className="w-3.5 h-3.5" /> Bitmoji
+        </button>
         <div className="flex-1" />
         <button onClick={onClose} className="w-7 h-7 rounded-full bg-secondary/60 flex items-center justify-center">
           <span className="text-[12px] text-muted-foreground font-bold">✕</span>
@@ -243,6 +250,27 @@ export const EmojiStickerPicker = ({ onSelect, onClose }: EmojiStickerPickerProp
             </div>
           </div>
         </div>
+      )}
+
+      {tab === "bitmoji" && (
+        <>
+          <AnimatePresence>
+            {showBitmojiBuilder && (
+              <BitmojiBuilder
+                initialConfig={bitmojiConfig}
+                onSave={saveBitmoji}
+                onClose={() => setShowBitmojiBuilder(false)}
+              />
+            )}
+          </AnimatePresence>
+          <div className="flex-1 overflow-hidden">
+            <BitmojiStickerSheet
+              config={bitmojiConfig}
+              onSelect={(text) => { onSelect(text, "sticker"); onClose(); }}
+              onEditAvatar={() => setShowBitmojiBuilder(true)}
+            />
+          </div>
+        </>
       )}
     </motion.div>
   );

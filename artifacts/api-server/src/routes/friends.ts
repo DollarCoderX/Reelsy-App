@@ -289,7 +289,13 @@ router.get('/friends/status', async (req, res) => {
     const toId = await resolveUserId(toUsername as string);
     if (!toId) return res.json({ status: 'not_found' });
 
-    const sb = getSupabaseClient();
+    let sb: ReturnType<typeof getSupabaseClient>;
+    try {
+      sb = getSupabaseClient();
+    } catch {
+      // Supabase not initialized — return neutral status so UI doesn't crash
+      return res.json({ status: 'none' });
+    }
 
     // Check if already friends
     const { data: friendship } = await sb

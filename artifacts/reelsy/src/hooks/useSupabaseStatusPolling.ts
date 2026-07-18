@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { getSession } from '@/lib/supabase-client';
 
+// Only warn once per session so the console stays clean
+let _supabaseSessionWarnFired = false;
+
 /**
  * Polls account status every 10 seconds.
  * Email-only users (no supabaseId) skip the Supabase session check entirely —
@@ -37,7 +40,10 @@ export const useSupabaseStatusPolling = () => {
 
             if (!session) {
               // Lost session - but be lenient: only act if we confirm via backend
-              console.warn('Supabase session not found for Google user');
+              if (!_supabaseSessionWarnFired) {
+                _supabaseSessionWarnFired = true;
+                console.warn('Supabase session not found for Google user (warning suppressed after first occurrence)');
+              }
             } else {
               const supabaseUser = session.user;
 

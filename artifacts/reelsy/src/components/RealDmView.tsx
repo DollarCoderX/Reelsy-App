@@ -8,6 +8,7 @@ import { ChevronLeft, Send, Loader2, Lock, Smile } from "lucide-react";
 import { useMessages } from "@/hooks/useMessages";
 import { useAppContext } from "@/context/AppContext";
 import { EmojiStickerPicker } from "@/components/EmojiStickerPicker";
+import { decodeBitmojiSticker, BitmojiStickerMessage } from "@/components/BitmojiAvatar";
 
 interface RealDmViewProps {
   conversationId: string;
@@ -122,6 +123,14 @@ const RealDmView = ({
 
         {messages.map((msg) => {
           const isMe = msg.sender_id === userId || msg.sender_username === user?.username?.replace(/^@/, "");
+          const bitmojiSticker = decodeBitmojiSticker(msg.content ?? "");
+          if (bitmojiSticker) {
+            return (
+              <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                <BitmojiStickerMessage text={msg.content} isMine={isMe} />
+              </div>
+            );
+          }
           return (
             <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-[14px] leading-relaxed ${

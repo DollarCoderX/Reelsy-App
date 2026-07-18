@@ -1,0 +1,22 @@
+Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+/api/friends/status?fromUserId=angel&toUsername=fasholaomotolan:1  Failed to load resource: the server responded with a status of 500 ()
+/api/friends/status?fromUserId=angel&toUsername=ifeyaht4w:1  Failed to load resource: the server responded with a status of 500 ()
+/api/friends/status?fromUserId=angel&toUsername=johnsonezenwa:1  Failed to load resource: the server responded with a status of 500 ()
+/api/auth/profile/angel:1  Failed to load resource: the server responded with a status of 500 ()
+request:1  Failed to load resource: the server responded with a status of 500 ()
+index-D-VDk4ih.js:79 Failed to send friend request: Error: Failed to send friend request
+    at Fe (index-D-VDk4ih.js:71:21461)
+    at async index-D-VDk4ih.js:79:10352
+    at async index-D-VDk4ih.js:79:33733

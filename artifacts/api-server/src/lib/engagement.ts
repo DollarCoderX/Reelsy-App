@@ -418,8 +418,14 @@ export async function markNotificationRead(notificationId: string): Promise<bool
   return result.modifiedCount > 0;
 }
 
+/** Returns true when postId looks like a valid MongoDB ObjectId (24-char hex). */
+function isValidObjectId(id: string): boolean {
+  return /^[a-f\d]{24}$/i.test(id);
+}
+
 // Helper: Get post comments
 export async function getPostComments(postId: string, limit: number = 20): Promise<Engagement[]> {
+  if (!isValidObjectId(postId)) return [];
   const engagementCollection = await getEngagementCollection();
   
   return engagementCollection
@@ -431,6 +437,7 @@ export async function getPostComments(postId: string, limit: number = 20): Promi
 
 // Helper: Check if user liked post
 export async function userLikedPost(postId: string, userId: string): Promise<boolean> {
+  if (!isValidObjectId(postId)) return false;
   const engagementCollection = await getEngagementCollection();
   
   const like = await engagementCollection.findOne({
@@ -444,6 +451,7 @@ export async function userLikedPost(postId: string, userId: string): Promise<boo
 
 // Helper: Check if user saved post
 export async function userSavedPost(postId: string, userId: string): Promise<boolean> {
+  if (!isValidObjectId(postId)) return false;
   const engagementCollection = await getEngagementCollection();
   
   const save = await engagementCollection.findOne({
