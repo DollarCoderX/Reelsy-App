@@ -17,6 +17,7 @@ import { useEngagement } from "@/hooks/useEngagement";
 import { LottieEmoji } from "@/components/LottieEmoji";
 import { EmojiText } from "@/components/EmojiText";
 import { api } from "@/lib/api";
+import { useNotifications } from "@/context/NotificationContext";
 
 interface HomeTabProps { onNavVisible?: (v: boolean) => void; }
 
