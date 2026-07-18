@@ -1034,8 +1034,13 @@ router.get('/search-by-phone', async (req, res) => {
     if (!phone) return res.status(400).json({ error: 'phone required' });
     const digits = (phone as string).replace(/\D/g, '');
     if (digits.length < 7) return res.json({ found: false });
+    // Use last 10 digits for flexible matching (handles local vs international formats)
+    const searchDigits = digits.slice(-10);
     const usersCollection = await getUsersCollection();
-    const user = await usersCollection.findOne({ phone: { $regex: digits } });
+    // Search stored phone field — strip non-digits from stored value via regex on the suffix
+    const user = await usersCollection.findOne({
+      phone: { $regex: searchDigits.split('').join('[^0-9]*') },
+    });
     if (!user) return res.json({ found: false });
     return res.json({
       found: true,

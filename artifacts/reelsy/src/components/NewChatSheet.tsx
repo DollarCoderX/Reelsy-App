@@ -265,24 +265,33 @@ export const NewChatSheet = ({ existingChatUsernames, onStartChat, onClose }: Ne
                   <p className="text-[13px] text-muted-foreground">No Reelsy user found with that number.</p>
                 </motion.div>
               )}
-              {phoneResult && typeof phoneResult === "object" && (
-                <motion.button key="found" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => { onStartChat(phoneResult.username, phoneResult.displayName, phoneResult.avatar); onClose(); }}
-                  className="w-full flex items-center gap-3 mt-2 px-3 py-2.5 rounded-2xl bg-secondary/40 border border-secondary">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-secondary shrink-0">
-                    {phoneResult.avatar
-                      ? <img src={phoneResult.avatar} alt={phoneResult.displayName} className="w-full h-full object-cover" />
-                      : <img src={`https://api.dicebear.com/9.x/adventurer/svg?seed=${phoneResult.username}&backgroundColor=b6e3f4`} alt={phoneResult.displayName} className="w-full h-full object-cover" />
+              {phoneResult && typeof phoneResult === "object" && (() => {
+                const isYou = phoneResult.username.replace(/^@/, "").toLowerCase() === username.toLowerCase();
+                return (
+                  <motion.div key="found" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className={`w-full flex items-center gap-3 mt-2 px-3 py-2.5 rounded-2xl bg-secondary/40 border border-secondary ${isYou ? "opacity-70" : ""}`}>
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-secondary shrink-0">
+                      {phoneResult.avatar
+                        ? <img src={phoneResult.avatar} alt={phoneResult.displayName} className="w-full h-full object-cover" />
+                        : <img src={`https://api.dicebear.com/9.x/avataaars/svg?seed=${phoneResult.username}&backgroundColor=b6e3f4`} alt={phoneResult.displayName} className="w-full h-full object-cover" />
+                      }
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold text-[13px]">
+                        {phoneResult.displayName}
+                        {isYou && <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">(you)</span>}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">@{phoneResult.username}</p>
+                    </div>
+                    {isYou
+                      ? <span className="text-[12px] font-medium text-muted-foreground shrink-0">That's you</span>
+                      : <button
+                          onClick={() => { onStartChat(phoneResult.username, phoneResult.displayName, phoneResult.avatar); onClose(); }}
+                          className="text-[12px] font-bold text-blue-500 shrink-0">Message →</button>
                     }
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-semibold text-[13px]">{phoneResult.displayName}</p>
-                    <p className="text-[11px] text-muted-foreground">@{phoneResult.username}</p>
-                  </div>
-                  <span className="text-[12px] font-bold text-blue-500 shrink-0">Message →</span>
-                </motion.button>
-              )}
+                  </motion.div>
+                );
+              })()}
             </AnimatePresence>
           </div>
         </div>

@@ -133,9 +133,13 @@ router.patch('/users/:username/phone', async (req, res) => {
     }
 
     const usersCollection = await getUsersCollection();
+    // Normalize: remove spaces so search works regardless of how user typed it
+    const normalizedPhone = phone.trim().replace(/\s+/g, '');
+    // Case-insensitive match, also handles @ prefix
+    const cleanName = username.replace(/^@/, '').trim();
     const result = await usersCollection.updateOne(
-      { username: username.toLowerCase() },
-      { $set: { phone: phone.trim(), updatedAt: new Date() } }
+      { username: { $regex: new RegExp('^@?' + cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } },
+      { $set: { phone: normalizedPhone, updatedAt: new Date() } }
     );
 
     if (result.matchedCount === 0) {
@@ -147,6 +151,7 @@ router.patch('/users/:username/phone', async (req, res) => {
     return res.status(500).json({ error: 'Failed to update phone number' });
   }
 });
+
 
 // GET /api/users/:username/stats - get user stats (friends count, posts count)
 router.get('/users/:username/stats', async (req, res) => {

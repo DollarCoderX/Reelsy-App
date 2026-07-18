@@ -46,10 +46,24 @@ export async function connectMongoDB(): Promise<Db> {
   }
 
   try {
-    client = new MongoClient(mongoUri);
+    client = new MongoClient(mongoUri, {
+      maxPoolSize: 100,      // handles 50+ concurrent users
+      minPoolSize: 5,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
     await client.connect();
     db = client.db(mongoDb);
     console.log('Connected to MongoDB');
+    // Ensure indexes for performance
+    const usersCol = db.collection('users');
+    await Promise.all([
+      usersCol.createIndex({ phone: 1 }, { sparse: true }),
+      usersCol.createIndex({ username: 1 }, { unique: true }),
+      db.collection('friend_requests').createIndex({ fromUsername: 1, toUsername: 1, status: 1 }),
+      db.collection('friend_requests').createIndex({ toUsername: 1, status: 1 }),
+      db.collection('friends').createIndex({ username: 1 }),
+    ]).catch(() => {}); // indexes are best-effort on startup
     return db;
   } catch (error) {
     console.error('Failed to connect to MongoDB:', error);

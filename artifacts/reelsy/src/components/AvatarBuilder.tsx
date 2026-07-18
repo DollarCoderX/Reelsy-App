@@ -99,16 +99,19 @@ interface AvatarConfig {
 
 function buildAvatarUrl(cfg: AvatarConfig): string {
   const params = new URLSearchParams({
-    seed: `custom-${cfg.skin}-${cfg.hairStyle}-${cfg.hairColor}`,
     backgroundColor: cfg.bg,
     skinColor: cfg.skin,
     hairColor: cfg.hairColor,
-    top: cfg.hairStyle === "none" ? "" : cfg.hairStyle,
-    accessories: cfg.accessory === "none" ? "" : cfg.accessory,
-    facialHair: cfg.facialHair === "none" ? "" : cfg.facialHair,
-    clothe: cfg.outfit,
+    top: cfg.hairStyle === "none" ? "shortHairShortFlat" : cfg.hairStyle,
+    accessories: cfg.accessory === "none" ? "blank" : cfg.accessory,
+    facialHair: cfg.facialHair === "none" ? "blank" : cfg.facialHair,
+    clotheType: cfg.outfit,
+    clotheColor: "pastelBlue",
+    eyes: "default",
+    eyebrow: "default",
+    mouth: "smile",
   });
-  return `https://api.dicebear.com/7.x/avataaars/svg?${params.toString()}`;
+  return `https://api.dicebear.com/9.x/avataaars/svg?${params.toString()}`;
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────

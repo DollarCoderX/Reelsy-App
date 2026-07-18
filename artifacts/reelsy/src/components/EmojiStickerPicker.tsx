@@ -130,10 +130,12 @@ interface EmojiStickerPickerProps {
 
 export const EmojiStickerPicker = ({ onSelect, onClose }: EmojiStickerPickerProps) => {
   const { tier } = useAppContext();
-  const [tab, setTab] = useState<"emoji" | "stickers">("emoji");
+  const [tab, setTab] = useState<"emoji" | "stickers" | "bitmoji">("emoji");
   const [emojiCat, setEmojiCat] = useState(0);
   const [stickerPack, setStickerPack] = useState(0);
   const [emojiSearch, setEmojiSearch] = useState("");
+  const [showBitmojiBuilder, setShowBitmojiBuilder] = useState(false);
+  const { config: bitmojiConfig, saveConfig: saveBitmoji } = useBitmojiConfig();
 
   const filteredEmojis = emojiSearch.trim()
     ? EMOJI_CATEGORIES.flatMap((c) => c.emojis).filter((e) => e.includes(emojiSearch))
@@ -257,7 +259,7 @@ export const EmojiStickerPicker = ({ onSelect, onClose }: EmojiStickerPickerProp
           <AnimatePresence>
             {showBitmojiBuilder && (
               <BitmojiBuilder
-                initialConfig={bitmojiConfig}
+                config={bitmojiConfig}
                 onSave={saveBitmoji}
                 onClose={() => setShowBitmojiBuilder(false)}
               />
