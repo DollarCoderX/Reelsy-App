@@ -80,7 +80,8 @@ export function useMessages(conversationId: string | null) {
         const { messages: fetched } = await api.messages.getMessages(
           conversationId,
           40,
-          before
+          before,
+          userId
         );
         if (before) {
           setMessages((prev) => [...fetched, ...prev]);

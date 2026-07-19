@@ -2270,6 +2270,11 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     otherAvatar?: string;
     isHelpCenter?: boolean;
   } | null>(null);
+
+  // Hide bottom navigator whenever a real DM conversation is open
+  useEffect(() => {
+    onNavVisible?.(!activeDmConv);
+  }, [activeDmConv, onNavVisible]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>(() => {
     const now = Date.now();
     const D = 24 * 60 * 60 * 1000; // one day in ms

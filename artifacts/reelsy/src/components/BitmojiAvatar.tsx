@@ -27,15 +27,15 @@ export interface BitmojiConfig {
 
 export const DEFAULT_CONFIG: BitmojiConfig = {
   skinColor: "light",
-  top: "shortHairShortFlat",
+  top: "shortFlat",
   hairColor: "brown",
   eyes: "default",
   eyebrow: "default",
   mouth: "smile",
-  facialHair: "blank",
+  facialHair: "",
   clotheType: "hoodie",
   clotheColor: "pastelBlue",
-  accessories: "blank",
+  accessories: "",
   background: "b6e3f4",
 };
 
@@ -88,14 +88,28 @@ export function buildBitmojiUrl(
     skinColor: cfg.skinColor,
     top: cfg.top,
     hairColor: cfg.hairColor,
-    facialHair: cfg.facialHair,
-    clotheType: cfg.clotheType,
-    clotheColor: cfg.clotheColor,
-    accessories: cfg.accessories,
+    clothing: cfg.clotheType,          // DiceBear v9: "clothing" not "clotheType"
+    clothesColor: cfg.clotheColor,     // DiceBear v9: "clothesColor" not "clotheColor"
     eyes: overrides.eyes ?? cfg.eyes,
-    eyebrow: overrides.eyebrow ?? cfg.eyebrow,
+    eyebrows: overrides.eyebrow ?? cfg.eyebrow, // DiceBear v9: "eyebrows" (plural)
     mouth: overrides.mouth ?? cfg.mouth,
   });
+  // facialHair: only include if non-empty; otherwise disable with probability=0
+  const fh = cfg.facialHair;
+  if (fh && fh !== 'blank') {
+    params.set('facialHair', fh);
+    params.set('facialHairProbability', '100');
+  } else {
+    params.set('facialHairProbability', '0');
+  }
+  // accessories: only include if non-empty; otherwise disable
+  const acc = cfg.accessories;
+  if (acc && acc !== 'blank') {
+    params.set('accessories', acc);
+    params.set('accessoriesProbability', '100');
+  } else {
+    params.set('accessoriesProbability', '0');
+  }
   return `https://api.dicebear.com/9.x/avataaars/svg?${params.toString()}`;
 }
 
@@ -107,15 +121,15 @@ export const MOOD_STICKERS = [
   { id: "wink",   label: "Wink 😉",    emoji: "😉", mouth: "smile",      eyes: "wink",       eyebrow: "default",              bg: "E8F5E9" },
   { id: "cool",   label: "Cool 😎",    emoji: "😎", mouth: "smile",      eyes: "squint",     eyebrow: "flatNatural",          bg: "E3F2FD" },
   { id: "wow",    label: "Wow 🤩",     emoji: "🤩", mouth: "screamOpen", eyes: "surprised",  eyebrow: "raisedExcited",        bg: "EDE7F6" },
-  { id: "bye",    label: "Bye 👋",     emoji: "👋", mouth: "smile",      eyes: "twinkling",  eyebrow: "raisedExcitedNatural", bg: "E0F7FA" },
+  { id: "bye",    label: "Bye 👋",     emoji: "👋", mouth: "smile",      eyes: "wink",       eyebrow: "raisedExcitedNatural", bg: "E0F7FA" },
   { id: "no",     label: "No Way 🙅",  emoji: "🙅", mouth: "grimace",    eyes: "eyeRoll",    eyebrow: "angryNatural",         bg: "FBE9E7" },
   { id: "cry",    label: "RIP 😭",     emoji: "😭", mouth: "sad",        eyes: "cry",        eyebrow: "sadConcernedNatural",  bg: "E8EAF6" },
-  { id: "vibe",   label: "Vibe ✨",    emoji: "✨", mouth: "twinkle",   eyes: "twinkling",  eyebrow: "raisedExcitedNatural", bg: "EDE7F6" },
-  { id: "sleep",  label: "Sleepy 😴",  emoji: "😴", mouth: "default",    eyes: "close",      eyebrow: "flatNatural",          bg: "E8EAF6" },
+  { id: "vibe",   label: "Vibe ✨",    emoji: "✨", mouth: "twinkle",   eyes: "winkWacky",  eyebrow: "raisedExcitedNatural", bg: "EDE7F6" },
+  { id: "sleep",  label: "Sleepy 😴",  emoji: "😴", mouth: "default",    eyes: "closed",     eyebrow: "flatNatural",          bg: "E8EAF6" },
   { id: "think",  label: "Hmm 🤔",     emoji: "🤔", mouth: "default",    eyes: "side",       eyebrow: "upDownNatural",        bg: "F3E5F5" },
   { id: "gg",     label: "GG 🏆",      emoji: "🏆", mouth: "smile",      eyes: "happy",      eyebrow: "raisedExcited",        bg: "FFFDE7" },
   { id: "nope",   label: "Nope 😑",    emoji: "😑", mouth: "serious",    eyes: "default",    eyebrow: "flatNatural",          bg: "EFEBE9" },
-  { id: "dizzy",  label: "Dizzy 😵",   emoji: "😵", mouth: "disbelief",  eyes: "dizzy",      eyebrow: "upDown",               bg: "FFEBEE" },
+  { id: "dizzy",  label: "Dizzy 😵",   emoji: "😵", mouth: "disbelief",  eyes: "xDizzy",     eyebrow: "upDown",               bg: "FFEBEE" },
   { id: "shock",  label: "OMG 😱",     emoji: "😱", mouth: "screamOpen", eyes: "xDizzy",     eyebrow: "raisedExcited",        bg: "FFF8E1" },
 ];
 
@@ -244,29 +258,29 @@ const SKIN_OPTIONS = [
 ];
 
 const TOP_OPTIONS = [
-  { label: "Short Flat",   value: "shortHairShortFlat" },
-  { label: "Short Round",  value: "shortHairShortRound" },
-  { label: "Short Curly",  value: "shortHairShortCurly" },
-  { label: "Short Waved",  value: "shortHairShortWaved" },
-  { label: "Caesar",       value: "shortHairTheCaesar" },
-  { label: "Caesar Side",  value: "shortHairTheCaesarSidePart" },
-  { label: "Sides",        value: "shortHairSides" },
-  { label: "Frizzle",      value: "shortHairFrizzle" },
-  { label: "Dreads",       value: "shortHairDreads01" },
-  { label: "Dreads 2",     value: "shortHairDreads02" },
-  { label: "Mullet",       value: "shortHairShaggyMullet" },
-  { label: "Long Straight",value: "longHairStraight" },
-  { label: "Long Wavy",    value: "longHairCurvy" },
-  { label: "Long Curly",   value: "longHairCurly" },
-  { label: "Big Hair",     value: "longHairBigHair" },
-  { label: "Bob",          value: "longHairBob" },
-  { label: "Bun",          value: "longHairBun" },
-  { label: "Dreads Long",  value: "longHairDreads" },
-  { label: "Fro",          value: "longHairFro" },
-  { label: "Fro Band",     value: "longHairFroBand" },
-  { label: "Not Too Long", value: "longHairNotTooLong" },
-  { label: "MIA",          value: "longHairMiaWallace" },
-  { label: "Shaved Sides", value: "longHairShavedSides" },
+  { label: "Short Flat",   value: "shortFlat" },
+  { label: "Short Round",  value: "shortRound" },
+  { label: "Short Curly",  value: "shortCurly" },
+  { label: "Short Waved",  value: "shortWaved" },
+  { label: "Caesar",       value: "theCaesar" },
+  { label: "Caesar Side",  value: "theCaesarAndSidePart" },
+  { label: "Sides",        value: "sides" },
+  { label: "Frizzle",      value: "frizzle" },
+  { label: "Dreads",       value: "dreads01" },
+  { label: "Dreads 2",     value: "dreads02" },
+  { label: "Mullet",       value: "shaggyMullet" },
+  { label: "Long Straight",value: "straight01" },
+  { label: "Long Wavy",    value: "curvy" },
+  { label: "Long Curly",   value: "curly" },
+  { label: "Big Hair",     value: "bigHair" },
+  { label: "Bob",          value: "bob" },
+  { label: "Bun",          value: "bun" },
+  { label: "Dreads Long",  value: "dreads" },
+  { label: "Fro",          value: "fro" },
+  { label: "Fro Band",     value: "froBand" },
+  { label: "Not Too Long", value: "longButNotTooLong" },
+  { label: "MIA",          value: "miaWallace" },
+  { label: "Shaved Sides", value: "shavedSides" },
   { label: "Hat",          value: "hat" },
   { label: "Hijab",        value: "hijab" },
   { label: "Turban",       value: "turban" },
@@ -291,14 +305,14 @@ const EYES_OPTIONS = [
   { label: "Happy",      value: "happy" },
   { label: "Squint",     value: "squint" },
   { label: "Wink",       value: "wink" },
-  { label: "Twinkling",  value: "twinkling" },
+  { label: "Twinkling",  value: "winkWacky" },
   { label: "Hearts",     value: "hearts" },
   { label: "Side",       value: "side" },
   { label: "Surprised",  value: "surprised" },
   { label: "Eye Roll",   value: "eyeRoll" },
-  { label: "Dizzy",      value: "dizzy" },
+  { label: "Dizzy",      value: "xDizzy" },
   { label: "Cry",        value: "cry" },
-  { label: "Close",      value: "close" },
+  { label: "Close",      value: "closed" },
   { label: "Wink Wacky", value: "winkWacky" },
   { label: "X Dizzy",    value: "xDizzy" },
 ];
@@ -344,15 +358,15 @@ const FACIAL_HAIR_OPTIONS = [
 ];
 
 const CLOTHE_OPTIONS = [
-  { label: "Hoodie",       value: "hoodie",         emoji: "🧥" },
-  { label: "Collar Swtr",  value: "collarSweater",  emoji: "👔" },
-  { label: "Blazer Shirt", value: "blazerShirt",    emoji: "🤵" },
-  { label: "Blazer Swtr",  value: "blazerSweater",  emoji: "🧑‍💼" },
-  { label: "Graphic Tee",  value: "graphicShirt",   emoji: "👕" },
-  { label: "Crew Neck",    value: "shirtCrewNeck",  emoji: "👕" },
-  { label: "V-Neck",       value: "shirtVNeck",     emoji: "👗" },
-  { label: "Scoop Neck",   value: "shirtScoopNeck", emoji: "👗" },
-  { label: "Overall",      value: "overall",        emoji: "👖" },
+  { label: "Hoodie",       value: "hoodie",           emoji: "🧥" },
+  { label: "Collar Swtr",  value: "collarAndSweater", emoji: "👔" },
+  { label: "Blazer Shirt", value: "blazerAndShirt",   emoji: "🤵" },
+  { label: "Blazer Swtr",  value: "blazerAndSweater", emoji: "🧑‍💼" },
+  { label: "Graphic Tee",  value: "graphicShirt",     emoji: "👕" },
+  { label: "Crew Neck",    value: "shirtCrewNeck",    emoji: "👕" },
+  { label: "V-Neck",       value: "shirtVNeck",       emoji: "👗" },
+  { label: "Scoop Neck",   value: "shirtScoopNeck",   emoji: "👗" },
+  { label: "Overall",      value: "overall",          emoji: "👖" },
 ];
 
 const CLOTHE_COLOR_OPTIONS = [
@@ -371,7 +385,7 @@ const CLOTHE_COLOR_OPTIONS = [
 ];
 
 const ACCESSORIES_OPTIONS = [
-  { label: "None",          value: "blank" },
+  { label: "None",          value: "" },
   { label: "Sunglasses",    value: "sunglasses" },
   { label: "Round",         value: "round" },
   { label: "Wayfarers",     value: "wayfarers" },

@@ -361,12 +361,33 @@ router.post('/messages/conversations/:id/send', async (req, res) => {
   }
 });
 
-// GET /api/messages/conversations/:id/messages?limit=&before=
+// GET /api/messages/conversations/:id/messages?limit=&before=&userId=
 router.get('/messages/conversations/:id/messages', async (req, res) => {
   try {
     const { id } = req.params;
     const limit = Math.min(parseInt(req.query.limit as string) || 40, 100);
     const before = req.query.before as string | undefined;
+    const userId = req.query.userId as string | undefined;
+
+    // ── Tier-based retention ─────────────────────────────────────────────────
+    // Free users: only last 24 hours. Premium / Premium+: unlimited history.
+    let retentionCutoff: string | null = null;
+    if (userId) {
+      try {
+        const { getUsersCollection } = await import('../lib/mongodb');
+        const usersCol = await getUsersCollection();
+        const reqUser = await usersCol.findOne({
+          $or: [{ supabaseId: userId }, { username: userId.replace(/^@/, '').toLowerCase() }],
+        });
+        const userTier: string = (reqUser as any)?.tier || 'free';
+        if (userTier === 'free' || !userTier) {
+          const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          retentionCutoff = cutoff.toISOString();
+        }
+      } catch {
+        // non-fatal — default to no cutoff
+      }
+    }
 
     const sb = await getSupabase();
 
@@ -377,14 +398,16 @@ router.get('/messages/conversations/:id/messages', async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (before) {
-      query = query.lt('created_at', before);
-    }
+    if (before) query = query.lt('created_at', before);
+    if (retentionCutoff) query = query.gte('created_at', retentionCutoff);
 
     const { data: messages, error } = await query;
     if (error) throw error;
 
-    return res.json({ messages: (messages || []).reverse() });
+    return res.json({
+      messages: (messages || []).reverse(),
+      retention: retentionCutoff ? '24h' : 'unlimited',
+    });
   } catch (error) {
     console.error('Error fetching messages:', error);
     return res.status(500).json({ error: 'Failed to fetch messages' });

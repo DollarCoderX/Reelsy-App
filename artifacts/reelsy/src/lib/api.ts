@@ -255,9 +255,9 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
-    getMessages: (conversationId: string, limit = 40, before?: string) =>
+    getMessages: (conversationId: string, limit = 40, before?: string, userId?: string) =>
       request<{ messages: Message[] }>(`/messages/conversations/${conversationId}/messages`, {
-        query: { limit, before },
+        query: { limit, ...(before ? { before } : {}), ...(userId ? { userId } : {}) },
       }),
 
     markRead: (conversationId: string, userId: string) =>
@@ -396,7 +396,7 @@ export interface Message {
   sender_username: string;
   sender_avatar?: string;
   content: string;
-  message_type: 'text' | 'emoji' | 'image' | 'system';
+  message_type: 'text' | 'emoji' | 'image' | 'video' | 'system';
   created_at: string;
   read_by: string[];
 }
@@ -458,7 +458,7 @@ export interface SendMessageData {
   senderUsername: string;
   senderAvatar?: string;
   content: string;
-  messageType?: 'text' | 'emoji' | 'image' | 'system';
+  messageType?: 'text' | 'emoji' | 'image' | 'video' | 'system';
 }
 
 export interface Story {
