@@ -100,15 +100,25 @@ export async function ensureMessagingTables() {
 // POST /api/messages/conversations — get-or-create a DM between two users
 router.post('/messages/conversations', async (req, res) => {
   try {
-    const { myUserId, myUsername, myDisplayName, myAvatar, otherUserId, otherUsername, otherDisplayName, otherAvatar } = req.body;
-    if (!myUserId || !otherUserId) {
-      return res.status(400).json({ error: 'myUserId and otherUserId required' });
+    const { myUserId, myUsername, myDisplayName, myAvatar, otherUsername, otherDisplayName, otherAvatar } = req.body;
+    let { otherUserId } = req.body;
+    if (!myUserId || !otherUsername) {
+      return res.status(400).json({ error: 'myUserId and otherUsername required' });
     }
 
     // Check if target user has friends-only chat policy (fail-closed: deny if policy check throws)
     const { getUsersCollection } = await import('../lib/mongodb');
     const usersCollection = await getUsersCollection();
-    const targetUser = await usersCollection.findOne({ username: otherUsername });
+    const cleanOther = otherUsername.replace(/^@/, '').toLowerCase().trim();
+    const targetUser = await usersCollection.findOne({ username: cleanOther });
+
+    // Resolve the other user's real Supabase ID so conversation_participants.user_id
+    // is always a UUID — not a username string that breaks lookups later.
+    if (targetUser && (targetUser as any).supabaseId) {
+      otherUserId = (targetUser as any).supabaseId;
+    } else if (!otherUserId) {
+      otherUserId = cleanOther; // fallback for non-Supabase users
+    }
     // Check messaging policy: only block if explicitly set to 'friends-only'
     // Default to 'everyone' — friendPolicy does NOT restrict messaging unless messagingPolicy is set
     const msgPolicy: string = (targetUser as any).messagingPolicy || 'everyone';

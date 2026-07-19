@@ -318,8 +318,20 @@ router.get('/friends/status', async (req, res) => {
     }
 
     const fromIdStr = fromUserId as string;
-    const fromClean = cleanUsername(fromIdStr);
     const toClean = cleanUsername(toUsername as string);
+
+    // fromUserId may be a Supabase UUID — resolve to the actual username
+    // so we can query the friends collection (which only stores usernames).
+    const usersCol = await getUsersCollection();
+    const fromUser = await usersCol.findOne({
+      $or: [
+        { supabaseId: fromIdStr },
+        { username: cleanUsername(fromIdStr) },
+      ],
+    });
+    const fromClean = fromUser
+      ? cleanUsername((fromUser as any).username || fromIdStr)
+      : cleanUsername(fromIdStr);
 
     const [reqCol, friendsCol] = await Promise.all([
       getMongoDBCollection('friend_requests'),
@@ -335,7 +347,7 @@ router.get('/friends/status', async (req, res) => {
     });
     if (friendship) return res.json({ status: 'friends' });
 
-    // Outgoing request (I sent to them)
+    // Outgoing request (I sent to them) — match by userId OR resolved username
     const outgoing = await reqCol.findOne({
       $or: [
         { fromUserId: fromIdStr, toUsername: toClean },
