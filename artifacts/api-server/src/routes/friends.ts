@@ -2,6 +2,10 @@
  * Friend requests and friendships — stored in MongoDB.
  * Uses username-based matching (case-insensitive) as primary key.
  * No longer depends on Supabase tables for friend data.
+ *
+ * IMPORTANT: userId used here must match what the frontend computes:
+ *   user?.supabaseId || user?.username
+ * So resolveUserInfo returns supabaseId OR normalized username — never _id.toString().
  */
 import { Router } from 'express';
 import { ObjectId } from 'mongodb';
@@ -17,20 +21,36 @@ function cleanUsername(u: string): string {
 async function resolveUserInfo(username: string): Promise<{ userId: string; displayName: string; avatar: string } | null> {
   const usersCollection = await getUsersCollection();
   const clean = cleanUsername(username);
-  const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const user = await usersCollection.findOne({
     $or: [
       { username: clean },
-      { username: `@${clean}` },
-      { username: { $regex: new RegExp(`^@?${escaped}$`, 'i') } },
+      { username: '@' + clean },
+      { username: { $regex: new RegExp('^@?' + clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } },
     ],
   });
   if (!user) return null;
+  // Must match frontend: user?.supabaseId || user?.username (NOT _id.toString())
+  const storedUsername = cleanUsername((user as any).username || clean);
   return {
-    userId: (user as any).supabaseId || (user as any)._id?.toString() || username,
+    userId: (user as any).supabaseId || storedUsername,
     displayName: (user as any).displayName || username,
     avatar: (user as any).profileImage || '',
   };
+}
+
+/**
+ * Persist notification to MongoDB (so polling picks it up) AND broadcast via
+ * Supabase Realtime for instant delivery. Non-fatal if either fails.
+ */
+async function persistAndBroadcast(notif: Record<string, any>): Promise<void> {
+  try {
+    const notifCol = await getMongoDBCollection('notifications');
+    const doc = { ...notif, read: false, createdAt: notif.createdAt || new Date().toISOString() };
+    const inserted = await notifCol.insertOne(doc);
+    broadcastNotification({ ...doc, _id: inserted.insertedId.toString() }).catch(() => {});
+  } catch {
+    broadcastNotification(notif).catch(() => {});
+  }
 }
 
 // ── POST /api/friends/request ─────────────────────────────────────────────────
@@ -77,9 +97,13 @@ router.post('/friends/request', async (req, res) => {
     });
     if (friendship) return res.status(409).json({ error: 'Already friends' });
 
+    // Resolve sender info so we have a consistent userId
+    const fromInfo = await resolveUserInfo(fromClean);
+    const resolvedFromUserId = fromInfo?.userId || fromUserId || fromClean;
+
     const now = new Date();
     const result = await reqCol.insertOne({
-      fromUserId: fromUserId || fromClean,
+      fromUserId: resolvedFromUserId,
       fromUsername: fromClean,
       fromDisplayName: fromDisplayName || fromUsername,
       fromAvatar: fromAvatar || null,
@@ -92,15 +116,15 @@ router.post('/friends/request', async (req, res) => {
 
     const requestId = result.insertedId.toString();
 
-    broadcastNotification({
+    // Persist to MongoDB notifications + broadcast (so recipient sees it via polling AND realtime)
+    persistAndBroadcast({
       userId: toInfo.userId,
-      fromUserId: fromUserId || fromClean,
+      fromUserId: resolvedFromUserId,
       fromUsername: fromClean,
       fromDisplayName: fromDisplayName || fromUsername,
       fromProfileImage: fromAvatar || null,
       type: 'friend_request',
       requestId,
-      read: false,
       createdAt: now.toISOString(),
     }).catch(() => {});
 
@@ -141,13 +165,14 @@ router.put('/friends/request/:id/accept', async (req, res) => {
     const friendsCol = await getMongoDBCollection('friends');
     const now = new Date();
 
+    // Add bidirectional friendship
     await Promise.all([
       friendsCol.updateOne(
         { username: fromUsername, friendUsername: toUsername },
         {
           $set: {
-            userId: (request as any).fromUserId,
-            friendId: (request as any).toUserId,
+            userId: fromInfo?.userId || (request as any).fromUserId,
+            friendId: toInfo?.userId || (request as any).toUserId,
             friendDisplayName: toInfo?.displayName || toUsername,
             friendAvatar: toInfo?.avatar || null,
             createdAt: now,
@@ -159,8 +184,8 @@ router.put('/friends/request/:id/accept', async (req, res) => {
         { username: toUsername, friendUsername: fromUsername },
         {
           $set: {
-            userId: (request as any).toUserId,
-            friendId: (request as any).fromUserId,
+            userId: toInfo?.userId || (request as any).toUserId,
+            friendId: fromInfo?.userId || (request as any).fromUserId,
             friendDisplayName: fromInfo?.displayName || fromUsername,
             friendAvatar: fromInfo?.avatar || null,
             createdAt: now,
@@ -170,15 +195,15 @@ router.put('/friends/request/:id/accept', async (req, res) => {
       ),
     ]);
 
-    broadcastNotification({
-      userId: (request as any).fromUserId,
-      fromUserId: (request as any).toUserId,
+    // Notify the original sender that their request was accepted
+    persistAndBroadcast({
+      userId: fromInfo?.userId || (request as any).fromUserId,
+      fromUserId: toInfo?.userId || (request as any).toUserId,
       fromUsername: toUsername,
       fromDisplayName: toInfo?.displayName || toUsername,
       fromProfileImage: toInfo?.avatar || null,
       type: 'friend_accepted',
       requestId: id,
-      read: false,
       createdAt: now.toISOString(),
     }).catch(() => {});
 
@@ -362,7 +387,7 @@ router.get('/friends/:username', async (req, res) => {
       .project({ emailPassword: 0, strikes: 0, userEmail: 0 })
       .toArray();
 
-    const profileMap = new Map(profiles.map((p: any) => [p.username, p]));
+    const profileMap = new Map(profiles.map((p: any) => [cleanUsername(p.username), p]));
     const friends = friendRows.map((f: any) =>
       profileMap.get(f.friendUsername) || {
         username: f.friendUsername,

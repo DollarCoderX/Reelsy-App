@@ -296,6 +296,20 @@ router.post('/messages/conversations/:id/send', async (req, res) => {
       })
       .eq('id', id);
 
+    // ── Supabase Realtime broadcast — instant delivery to both participants ────
+    // postgres_changes may not fire due to RLS; broadcast is always reliable.
+    setImmediate(async () => {
+      try {
+        const rtChannel = sb.channel(`messages:${id}`);
+        await rtChannel.send({
+          type: 'broadcast',
+          event: 'new_message',
+          payload: msg,
+        });
+        await sb.removeChannel(rtChannel);
+      } catch (_) { /* non-fatal */ }
+    });
+
     // ── Whales Help Center auto-response ──────────────────────────────────────
     // Run after the response so the user gets an immediate ack
     setImmediate(async () => {

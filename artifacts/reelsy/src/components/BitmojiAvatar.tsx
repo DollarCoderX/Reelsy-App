@@ -443,7 +443,24 @@ export const BitmojiBuilder = ({ config: initialConfig, onSave, onClose }: Bitmo
       <div className="shrink-0 flex justify-center py-3">
         <div className="w-28 h-28 rounded-3xl overflow-hidden border-2 border-secondary/50 shadow-lg"
           style={{ backgroundColor: `#${cfg.background}` }}>
-          <img src={previewUrl} alt="Avatar preview" className="w-full h-full object-contain" />
+          <img
+            src={previewUrl}
+            alt="Avatar preview"
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              // Fallback: show a colored emoji placeholder if DiceBear fails
+              const parent = (e.target as HTMLImageElement).parentElement;
+              if (parent) {
+                (e.target as HTMLImageElement).style.display = 'none';
+                if (!parent.querySelector('.bitmoji-fallback')) {
+                  const el = document.createElement('div');
+                  el.className = 'bitmoji-fallback w-full h-full flex items-center justify-center text-5xl';
+                  el.textContent = '🙂';
+                  parent.appendChild(el);
+                }
+              }
+            }}
+          />
         </div>
       </div>
 

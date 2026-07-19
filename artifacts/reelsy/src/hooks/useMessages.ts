@@ -4,8 +4,8 @@ import { supabase } from "@/lib/supabase-client";
 import { useAppContext } from "@/context/AppContext";
 
 /**
- * useConversations — list all DM threads for the current user
- * with Supabase Realtime subscription for new messages.
+ * useConversations — list all DM threads for the current user.
+ * Polls every 15 seconds (realtime postgres_changes unreliable with RLS).
  */
 export function useConversations() {
   const { user } = useAppContext();
@@ -26,48 +26,41 @@ export function useConversations() {
     }
   }, [userId]);
 
+  // Initial fetch
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
-  // Subscribe to all message inserts that involve the current user's conversations
+  // Poll every 15 s so conversation list stays fresh (new messages, unread counts)
   useEffect(() => {
-    if (!userId || conversations.length === 0) return;
+    if (!userId) return;
+    const interval = setInterval(fetchConversations, 15_000);
+    return () => clearInterval(interval);
+  }, [userId, fetchConversations]);
 
-    const channel = supabase
-      .channel(`user-messages:${userId}`)
-      .on(
-        "postgres_changes" as any,
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload: any) => {
-          const msg: Message = payload.new;
-          setConversations((prev) =>
-            prev.map((conv) => {
-              if (conv.id !== msg.conversation_id) return conv;
-              const isFromMe = msg.sender_id === userId;
-              return {
-                ...conv,
-                last_message_preview: msg.content.slice(0, 80),
-                last_message_at: msg.created_at,
-                unreadCount: isFromMe ? conv.unreadCount : conv.unreadCount + 1,
-              };
-            })
-          );
-        }
-      )
-      .subscribe();
+  // Also update the preview optimistically when a broadcast fires on any open conv
+  const updateConvPreview = useCallback((conversationId: string, msg: Message) => {
+    setConversations((prev) =>
+      prev.map((conv) => {
+        if (conv.id !== conversationId) return conv;
+        const isFromMe = msg.sender_id === userId;
+        return {
+          ...conv,
+          last_message_preview: msg.content.slice(0, 80),
+          last_message_at: msg.created_at,
+          unreadCount: isFromMe ? conv.unreadCount : (conv.unreadCount || 0) + 1,
+        };
+      })
+    );
+  }, [userId]);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, conversations.length]);
-
-  return { conversations, loading, fetchConversations };
+  return { conversations, loading, fetchConversations, updateConvPreview };
 }
 
 /**
  * useMessages — messages for a single conversation with Supabase Realtime.
- * Also supports typing indicator via Supabase Realtime Broadcast.
+ * Listens for broadcast `new_message` events (reliable) AND postgres_changes
+ * (when RLS is configured). Also supports typing indicator via broadcast.
  */
 export function useMessages(conversationId: string | null) {
   const { user } = useAppContext();
@@ -113,12 +106,28 @@ export function useMessages(conversationId: string | null) {
     api.messages.markRead(conversationId, userId).catch(() => {});
   }, [conversationId, userId, fetchMessages]);
 
-  // Supabase Realtime subscription — messages + typing broadcast
+  // Supabase Realtime subscription — broadcast new_message + typing
   useEffect(() => {
     if (!conversationId) return;
 
+    const addMessage = (newMsg: Message) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === newMsg.id)) return prev;
+        return [...prev, newMsg];
+      });
+      if (newMsg.sender_id !== userId) {
+        api.messages.markRead(conversationId, userId).catch(() => {});
+      }
+    };
+
     const channel = supabase
       .channel(`messages:${conversationId}`)
+      // Broadcast from server (reliable, bypasses RLS)
+      .on("broadcast" as any, { event: "new_message" }, (payload: any) => {
+        const newMsg: Message = payload.payload;
+        if (newMsg) addMessage(newMsg);
+      })
+      // Postgres changes (works if RLS is configured + realtime enabled)
       .on(
         "postgres_changes" as any,
         {
@@ -129,17 +138,10 @@ export function useMessages(conversationId: string | null) {
         },
         (payload: any) => {
           const newMsg: Message = payload.new;
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
-          // Mark read immediately if I'm in the conversation
-          if (newMsg.sender_id !== userId) {
-            api.messages.markRead(conversationId, userId).catch(() => {});
-          }
+          if (newMsg) addMessage(newMsg);
         }
       )
-      // Typing indicator via broadcast (no DB writes, fully ephemeral)
+      // Typing indicator via broadcast (ephemeral, no DB writes)
       .on("broadcast" as any, { event: "typing" }, (payload: any) => {
         const typingUserId = payload?.payload?.userId;
         if (typingUserId && typingUserId !== userId) {
@@ -169,7 +171,7 @@ export function useMessages(conversationId: string | null) {
           content,
           messageType,
         });
-        // Optimistically add — Realtime will also fire but we dedupe
+        // Optimistically add — Realtime broadcast will also fire but we dedupe
         setMessages((prev) => {
           if (prev.some((m) => m.id === message.id)) return prev;
           return [...prev, message];
