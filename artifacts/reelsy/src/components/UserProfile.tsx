@@ -14,6 +14,7 @@ import {
   UserPlus,
   Users,
   Loader2,
+  Repeat2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Bot } from "@/data/bots";
@@ -39,16 +40,7 @@ interface UserProfileProps {
 }
 
 type FriendStatus = "none" | "requested" | "friends";
-type ProfileTab = "posts" | "replies" | "media" | "likes";
-
-const GRID_IMAGES = [
-  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=500&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=500&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=500&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=500&auto=format&fit=crop",
-];
+type ProfileTab = "posts" | "friends";
 
 const BOT_COVERS = [
   "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&auto=format&fit=crop",
@@ -100,13 +92,16 @@ const RealUserProfileView = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [stats, setStats] = useState<{ friendCount: number; postCount: number } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [realPosts, setRealPosts] = useState<any[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [friends, setFriends] = useState<ApiUserProfile[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [isStartingDm, setIsStartingDm] = useState(false);
 
   const isMe = me?.username === realUser.username;
   const friendState = statusCache[realUser.username];
   const friendStatus = friendState?.status || "none";
   const isLoading = friendLoading[realUser.username] || false;
-  const [messagingBlocked, setMessagingBlocked] = useState(false);
-  const [isStartingDm, setIsStartingDm] = useState(false);
 
   useEffect(() => {
     getStatus(realUser.username).catch(() => {});
@@ -114,19 +109,38 @@ const RealUserProfileView = ({
       .then((data) => setStats(data))
       .catch(() => {});
 
-    // Fire profile_view notification (once per session per profile, not for own profile)
+    // Fetch posts by this user
+    setPostsLoading(true);
+    (api.posts as any).getFeed({ limit: 20, username: realUser.username })
+      .then((res: any) => {
+        setRealPosts(res?.posts || []);
+      })
+      .catch(() => {})
+      .finally(() => setPostsLoading(false));
+
+    // Fire profile_view notification
     if (!isMe && me?.supabaseId && realUser.supabaseId && !viewedThisSession.has(realUser.username)) {
       viewedThisSession.add(realUser.username);
       api.engagement.notifyProfileView({
         viewerUserId: me.supabaseId,
-        viewerUsername: me.username || '',
-        viewerDisplayName: me.nickname || me.username || '',
+        viewerUsername: me.username || "",
+        viewerDisplayName: me.nickname || me.username || "",
         viewerProfileImage: me.avatar || undefined,
         profileOwnerId: realUser.supabaseId,
         profileOwnerUsername: realUser.username,
       }).catch(() => {});
     }
   }, [realUser.username]);
+
+  useEffect(() => {
+    if (activeTab === "friends" && friends.length === 0 && !friendsLoading) {
+      setFriendsLoading(true);
+      api.friends.getFriends(realUser.username)
+        .then((res) => setFriends(res.friends || []))
+        .catch(() => {})
+        .finally(() => setFriendsLoading(false));
+    }
+  }, [activeTab, realUser.username]);
 
   const handleFriendAction = async () => {
     if (isMe) return;
@@ -175,7 +189,7 @@ const RealUserProfileView = ({
           className="absolute inset-0 flex flex-col overflow-hidden bg-background text-foreground"
         >
           {/* Cover */}
-          <div className="relative h-[236px] shrink-0 overflow-visible bg-background">
+          <div className="relative h-[220px] shrink-0 overflow-visible bg-background">
             <div
               className="absolute inset-0 overflow-hidden bg-secondary"
               style={{
@@ -244,12 +258,10 @@ const RealUserProfileView = ({
             {/* Action buttons */}
             {!isMe && (
               <div className="absolute bottom-0 right-5 z-10 flex translate-y-1/2 items-center gap-2">
-                {onMessage && !isMe && (
+                {onMessage && (
                   <button
-                    onClick={async () => {
-                      if (messagingBlocked) return;
+                    onClick={() => {
                       if (isStartingDm) return;
-                      // Store in localStorage so ChatTab can pick it up
                       localStorage.setItem("reelsy_open_dm_username", realUser.username || "");
                       localStorage.setItem("reelsy_open_dm_displayName", realUser.displayName || realUser.username || "");
                       localStorage.setItem("reelsy_open_dm_avatar", realUser.profileImage || "");
@@ -260,11 +272,6 @@ const RealUserProfileView = ({
                   >
                     {isStartingDm ? <span className="w-4 h-4 border-2 border-foreground border-t-transparent rounded-full animate-spin" /> : <Mail className="h-4 w-4" />}
                   </button>
-                )}
-                {messagingBlocked && (
-                  <div className="absolute left-0 right-0 -bottom-8 text-center">
-                    <span className="text-[10px] text-red-500 font-medium">Can't message — friends only</span>
-                  </div>
                 )}
                 <button
                   onClick={handleFriendAction}
@@ -294,13 +301,13 @@ const RealUserProfileView = ({
                 <p className="text-[12px] font-medium text-muted-foreground">@{realUser.username}</p>
               </div>
 
-              <div className="mt-3 flex items-center gap-4 text-[13px]">
+              <div className="mt-3 flex items-center gap-5 text-[13px]">
                 <p>
                   <span className="font-bold">{stats?.friendCount ?? "—"}</span>{" "}
                   <span className="text-muted-foreground">Friends</span>
                 </p>
                 <p>
-                  <span className="font-bold">{stats?.postCount ?? "—"}</span>{" "}
+                  <span className="font-bold">{(stats?.postCount ?? realPosts.length) || "—"}</span>{" "}
                   <span className="text-muted-foreground">Posts</span>
                 </p>
               </div>
@@ -309,8 +316,9 @@ const RealUserProfileView = ({
                 <p className="mt-3 max-w-[310px] text-[13px] leading-relaxed">{realUser.bio}</p>
               )}
 
+              {/* Tabs */}
               <div className="mt-5 flex border-b border-secondary/80">
-                {(["posts", "media"] as const).map((tab) => (
+                {(["posts", "friends"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -318,45 +326,114 @@ const RealUserProfileView = ({
                       activeTab === tab ? "border-b-2 border-foreground text-foreground" : "text-muted-foreground"
                     }`}
                   >
-                    {tab}
+                    {tab === "posts" ? "Posts" : "Friends"}
                   </button>
                 ))}
               </div>
 
-              {activeTab === "posts" ? (
-                <div className="border-b border-secondary/70 py-4">
-                  <div className="flex gap-3">
-                    <img src={avatarUrl} alt="" className="h-10 w-10 rounded-full bg-secondary object-cover" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-[13px] font-bold">{displayName}</p>
-                          <p className="text-[11px] text-muted-foreground">@{realUser.username}</p>
-                        </div>
-                      </div>
-                      <p className="mt-2 text-[12px] leading-relaxed text-foreground/85">
-                        Welcome to my profile! Check out my posts and let's connect.
-                      </p>
-                      <div className="mt-3 flex items-center gap-5 text-muted-foreground">
-                        <span className="flex items-center gap-1 text-[11px]"><Heart className="h-3.5 w-3.5" /> {stats?.postCount || 0}</span>
-                        <span className="flex items-center gap-1 text-[11px]"><MessageCircle className="h-3.5 w-3.5" /> 0</span>
-                        <span className="flex items-center gap-1 text-[11px]"><Bookmark className="h-3.5 w-3.5" /> Save</span>
-                      </div>
+              {/* Posts Tab */}
+              {activeTab === "posts" && (
+                <div className="py-2">
+                  {postsLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                     </div>
-                  </div>
+                  ) : realPosts.length === 0 ? (
+                    <div className="flex flex-col items-center py-10 text-muted-foreground gap-2">
+                      <MessageCircle className="w-8 h-8 opacity-30" />
+                      <p className="text-[13px]">No posts yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-0">
+                      {realPosts.map((post: any) => (
+                        <div key={String(post._id)} className="border-b border-secondary/60 py-3.5">
+                          <div className="flex gap-3">
+                            <img src={avatarUrl} alt="" className="h-9 w-9 rounded-full bg-secondary object-cover shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <p className="text-[13px] font-bold truncate">{displayName}</p>
+                                <span className="text-[11px] text-muted-foreground shrink-0">
+                                  {post.createdAt ? new Date(post.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""}
+                                </span>
+                              </div>
+                              <p className="text-[13px] leading-relaxed text-foreground/90 break-words">
+                                {post.content}
+                              </p>
+                              {/* Media preview */}
+                              {post.media && (
+                                <div className="mt-2 rounded-2xl overflow-hidden max-h-64 bg-secondary">
+                                  {(post.type === "video" || (Array.isArray(post.media) ? post.media[0] : post.media)?.match(/\.(mp4|mov|webm)/i)) ? (
+                                    <video
+                                      src={Array.isArray(post.media) ? post.media[0] : post.media}
+                                      className="w-full max-h-64 object-cover"
+                                      controls
+                                    />
+                                  ) : (
+                                    <img
+                                      src={Array.isArray(post.media) ? post.media[0] : post.media}
+                                      alt=""
+                                      className="w-full max-h-64 object-cover"
+                                    />
+                                  )}
+                                </div>
+                              )}
+                              <div className="mt-2 flex items-center gap-5 text-muted-foreground">
+                                <span className="flex items-center gap-1 text-[11px]">
+                                  <Heart className="h-3.5 w-3.5" />
+                                  {Array.isArray(post.likes) ? post.likes.length : post.likesCount || 0}
+                                </span>
+                                <span className="flex items-center gap-1 text-[11px]">
+                                  <MessageCircle className="h-3.5 w-3.5" />
+                                  {post.replyCount || 0}
+                                </span>
+                                <span className="flex items-center gap-1 text-[11px]">
+                                  <Repeat2 className="h-3.5 w-3.5" />
+                                  {Array.isArray(post.reposts) ? post.reposts.length : post.repostsCount || 0}
+                                </span>
+                                <span className="flex items-center gap-1 text-[11px]">
+                                  <Bookmark className="h-3.5 w-3.5" /> Save
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-1 py-4">
-                  {GRID_IMAGES.map((img, index) => (
-                    <div key={img} className="relative aspect-square overflow-hidden rounded-sm bg-secondary">
-                      <img src={img} alt="" className="h-full w-full object-cover" />
-                      {index === 2 && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/25">
-                          <Play className="h-6 w-6 fill-white text-white" />
-                        </div>
-                      )}
+              )}
+
+              {/* Friends Tab */}
+              {activeTab === "friends" && (
+                <div className="py-2">
+                  {friendsLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                     </div>
-                  ))}
+                  ) : friends.length === 0 ? (
+                    <div className="flex flex-col items-center py-10 text-muted-foreground gap-2">
+                      <Users className="w-8 h-8 opacity-30" />
+                      <p className="text-[13px]">No friends yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1 pt-1">
+                      {friends.map((friend) => {
+                        const fAvatar = friend.profileImage ||
+                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.username}&backgroundColor=b6e3f4`;
+                        return (
+                          <div key={friend.username} className="flex items-center gap-3 py-2.5 px-1">
+                            <div className="w-10 h-10 rounded-full overflow-hidden bg-secondary shrink-0">
+                              <img src={fAvatar} alt={friend.username} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-[13px] truncate">{friend.displayName || friend.username}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">@{friend.username}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -404,6 +481,15 @@ const BotProfileView = ({
   const friendLabel = friendStatus === "friends" ? "Friends" : friendStatus === "requested" ? "Pending" : "Add Friend";
   const FriendIcon = friendStatus === "friends" ? Users : UserPlus;
 
+  const GRID_IMAGES = [
+    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=500&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=500&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=500&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=500&auto=format&fit=crop",
+  ];
+
   return (
     <AnimatePresence>
       <motion.div
@@ -419,7 +505,7 @@ const BotProfileView = ({
           transition={{ type: "spring", stiffness: 330, damping: 34 }}
           className="absolute inset-0 flex flex-col overflow-hidden bg-background text-foreground"
         >
-          <div className="relative h-[236px] shrink-0 overflow-visible bg-background">
+          <div className="relative h-[220px] shrink-0 overflow-visible bg-background">
             <div
               className="absolute inset-0 overflow-hidden bg-secondary"
               style={{
@@ -539,7 +625,7 @@ const BotProfileView = ({
               <p className="mt-3 max-w-[310px] text-[13px] leading-relaxed">{bot.bio}</p>
 
               <div className="mt-5 flex border-b border-secondary/80">
-                {(["posts", "replies", "media", "likes"] as const).map((tab) => (
+                {(["posts", "friends"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -547,12 +633,12 @@ const BotProfileView = ({
                       activeTab === tab ? "border-b-2 border-foreground text-foreground" : "text-muted-foreground"
                     }`}
                   >
-                    {tab}
+                    {tab === "posts" ? "Posts" : "Friends"}
                   </button>
                 ))}
               </div>
 
-              {activeTab === "posts" || activeTab === "replies" ? (
+              {activeTab === "posts" ? (
                 <div className="border-b border-secondary/70 py-4">
                   <div className="flex gap-3">
                     <img src={avatarUrl} alt="" className="h-10 w-10 rounded-full bg-secondary object-cover" />

@@ -605,10 +605,10 @@ const ReelsyAdBrowser = ({
 const REPORT_REASONS_POST = ["Spam", "Misinformation", "Hateful content", "Nudity or sexual content", "Violence", "Scam or fraud", "Other"];
 
 const PostCard = ({
-  post, authorName, authorAvatar, currentUserAvatar, currentUserNickname, onComment, onRepost, onTagClick, onSeenTap, onAdOpen
+  post, authorName, authorAvatar, currentUserAvatar, currentUserNickname, onComment, onRepost, onTagClick, onSeenTap, onAdOpen, onAvatarTap
 }: {
   post: PostData; authorName?: string; authorAvatar?: string; currentUserAvatar?: string; currentUserNickname?: string;
-  onAvatarTap?: (id: string) => void;
+  onAvatarTap?: (username: string) => void;
   onComment: (post: PostData) => void; onRepost: (post: PostData) => void;
   onTagClick?: (tag: string) => void;
   onSeenTap?: (post: PostData) => void;
@@ -1019,6 +1019,9 @@ const PostCard = ({
               onAdOpen?.(post);
               return;
             }
+            if (!post.isUserPost && (post.authorHandle || post.authorUsername)) {
+              onAvatarTap?.((post.authorUsername || post.authorHandle || "").replace(/^@/, ""));
+            }
           }}
         >
           <div className="w-9 h-9 rounded-full bg-secondary overflow-hidden">
@@ -1041,6 +1044,9 @@ const PostCard = ({
                   if (post.isAd) {
                     onAdOpen?.(post);
                     return;
+                  }
+                  if (!post.isUserPost && (post.authorHandle || post.authorUsername)) {
+                    onAvatarTap?.((post.authorUsername || post.authorHandle || "").replace(/^@/, ""));
                   }
                 }}
                 className="font-semibold text-[13px] truncate"
@@ -1363,6 +1369,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
   );
 
   const [profileBot, setProfileBot] = useState<string | null>(null);
+  const [profileRealUser, setProfileRealUser] = useState<any | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [commentPost, setCommentPost] = useState<PostData | null>(null);
   const [userPosts, setUserPosts] = useState<PostData[]>(() => {
@@ -1611,6 +1618,29 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     onNavVisible?.(true);
   };
 
+  const openRealUserProfile = async (username: string) => {
+    if (!username) return;
+    try {
+      // Try fetching from API; fall back to a minimal stub so profile still opens
+      let profile: any = null;
+      try {
+        profile = await api.users.getProfile(username);
+      } catch {
+        // API may not have the endpoint yet — build a stub from available info
+        profile = { username, displayName: username, profileImage: undefined };
+      }
+      if (profile) {
+        setProfileRealUser(profile);
+        onNavVisible?.(false);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const closeRealUserProfile = () => {
+    setProfileRealUser(null);
+    onNavVisible?.(true);
+  };
+
   const closeNotifs = () => {
     setNotifOpen(false);
     onNavVisible?.(true);
@@ -1842,8 +1872,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     ? user.avatar
     : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || "user"}&backgroundColor=b6e3f4`;
 
-  const NOTIFS = [
-    ];
+  const NOTIFS: { name: string; action: string; seed: string; time: string }[] = [];
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
@@ -1943,7 +1972,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
           </div>
           {apiStories.map((s) => (
             <motion.button key={s.id} whileTap={{ scale: 0.92 }}
-              onClick={() => openProfile(s.id)}
+              onClick={() => openRealUserProfile(s.authorUsername || s.id)}
               className="flex flex-col items-center gap-1 shrink-0">
               <div className={`w-[50px] h-[50px] rounded-full p-[2px] ${s.unread ? "bg-foreground" : "bg-secondary"}`}>
                 <div className="w-full h-full rounded-full overflow-hidden bg-secondary ring-[2px] ring-background">
@@ -2006,6 +2035,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
                   onTagClick={setActiveTag}
                   onSeenTap={openSeenSheet}
                   onAdOpen={openAdBrowser}
+                  onAvatarTap={openRealUserProfile}
                 />
                 <div className="h-px bg-secondary/40 mx-4" />
               </motion.div>
@@ -2109,6 +2139,22 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Real user profile sheet */}
+      <AnimatePresence>
+        {profileRealUser && (
+          <UserProfile
+            realUser={profileRealUser}
+            onClose={closeRealUserProfile}
+            onMessage={(u) => {
+              closeRealUserProfile();
+              localStorage.setItem("reelsy_open_dm_username", u.username || "");
+              localStorage.setItem("reelsy_open_dm_displayName", u.displayName || u.username || "");
+              localStorage.setItem("reelsy_open_dm_avatar", u.profileImage || "");
+            }}
+          />
         )}
       </AnimatePresence>
     </div>

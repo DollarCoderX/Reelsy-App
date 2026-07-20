@@ -40,13 +40,13 @@ outputType = "webview"
 name = "Start API server"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/api-server && pnpm run dev"
-waitForPort = 3000
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && ([ -d dist ] && pnpm run start || pnpm run dev)"
+waitForPort = 3000
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"

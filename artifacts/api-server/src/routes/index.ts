@@ -11,6 +11,7 @@ import friendsRouter from "./friends";
 import messagesRouter from "./messages";
 import storiesRouter from "./stories";
 import blocksRouter from "./blocks";
+import hashtagsRouter from "./hashtags";
 
 const router: IRouter = Router();
 
@@ -26,6 +27,7 @@ router.use(friendsRouter);
 router.use(messagesRouter);
 router.use(storiesRouter);
 router.use(blocksRouter);
+router.use(hashtagsRouter);
 
 router.get("/music/search", async (req, res) => {
   const { q } = req.query;

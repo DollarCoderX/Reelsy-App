@@ -63,6 +63,16 @@ export const api = {
       }),
   },
 
+  // ─── Hashtags ─────────────────────────────────────────────────────────────
+  hashtags: {
+    getTrending: (limit = 30) =>
+      request<{ hashtags: string[]; userCreated: string[] }>('/hashtags/trending', { query: { limit } }),
+    track: (tags: string[]) =>
+      request<{ tracked: number }>('/hashtags/track', { method: 'POST', body: JSON.stringify({ tags }) }),
+    search: (q: string, limit = 20) =>
+      request<{ suggestions: { tag: string; count: number; userCreated: boolean }[]; posts: Post[] }>('/hashtags/search', { query: { q, limit } }),
+  },
+
   // ─── Stories ──────────────────────────────────────────────────────────────
   stories: {
     getAll: () => request<{ stories: Story[] }>('/stories'),
@@ -177,6 +187,9 @@ export const api = {
 
     getSuggestions: (username: string, limit = 10) =>
       request<{ users: UserProfile[] }>('/users/suggestions', { query: { username, limit } }),
+
+    getProfile: (username: string) =>
+      request<UserProfile>(`/auth/profile/@${username.replace(/^@/, '')}`),
 
     getFollowers: (username: string) =>
       request<{ count: number }>(`/users/${username}/followers`),

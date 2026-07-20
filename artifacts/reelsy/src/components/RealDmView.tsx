@@ -1,15 +1,14 @@
 /**
  * RealDmView — full-screen DM UI matching the Reelsy mock chat style.
- * Matches the dark chat UI from the screenshots: header with back/avatar/name/
- * active-status/call/search/more, E2E badge, date separators, + attachment menu,
- * real photo & video upload, typing indicator.
+ * Features: real-time messages, E2E badge, voice recording, photo/video/doc upload,
+ * typing indicator, search, and sticker support.
  */
 import { useState, useRef, useEffect, useCallback, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ChevronLeft, Send, Loader2, Lock, Smile, Mic, Phone, Search,
+  ChevronLeft, Send, Loader2, Lock, Smile, Mic, MicOff, Phone, Search,
   MoreHorizontal, Plus, X, Image, Camera, Users, Calendar,
-  FileText, Zap, Tag, StickerIcon,
+  FileText, Zap, Tag, StickerIcon, StopCircle,
 } from "lucide-react";
 import { useMessages } from "@/hooks/useMessages";
 import { useAppContext } from "@/context/AppContext";
@@ -45,16 +44,22 @@ function formatDateLabel(iso: string) {
   } catch { return ""; }
 }
 
+function formatDuration(secs: number) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 // ── Attachment menu items ─────────────────────────────────────────────────────
 const ATTACH_ITEMS = [
-  { key: "document",  label: "Document",        icon: FileText,    color: "bg-purple-600" },
-  { key: "photo",     label: "Photos & videos", icon: Image,       color: "bg-blue-500"   },
-  { key: "camera",    label: "Camera",           icon: Camera,      color: "bg-emerald-500"},
-  { key: "friends",   label: "Friends",          icon: Users,       color: "bg-cyan-500"   },
-  { key: "event",     label: "Event",            icon: Calendar,    color: "bg-red-500"    },
-  { key: "stickers",  label: "Emojis & Stickers",icon: StickerIcon, color: "bg-green-500"  },
-  { key: "catalogue", label: "Catalogue",        icon: Tag,         color: "bg-indigo-500" },
-  { key: "quick",     label: "Quick replies",    icon: Zap,         color: "bg-yellow-500" },
+  { key: "document",  label: "Document",         icon: FileText,    color: "bg-purple-600" },
+  { key: "photo",     label: "Photos & videos",  icon: Image,       color: "bg-blue-500"   },
+  { key: "camera",    label: "Camera",            icon: Camera,      color: "bg-emerald-500"},
+  { key: "friends",   label: "Friends",           icon: Users,       color: "bg-cyan-500"   },
+  { key: "event",     label: "Event",             icon: Calendar,    color: "bg-red-500"    },
+  { key: "stickers",  label: "Emojis & Stickers", icon: StickerIcon, color: "bg-green-500"  },
+  { key: "catalogue", label: "Catalogue",         icon: Tag,         color: "bg-indigo-500" },
+  { key: "quick",     label: "Quick replies",     icon: Zap,         color: "bg-yellow-500" },
 ] as const;
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -81,6 +86,13 @@ const RealDmView = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
 
+  // ── Voice recording state ─────────────────────────────────────────────────
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
@@ -91,6 +103,14 @@ const RealDmView = ({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOtherTyping]);
+
+  // Cleanup recording timer on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      mediaRecorderRef.current?.stop();
+    };
+  }, []);
 
   const avatarUrl = otherAvatar ||
     `https://api.dicebear.com/9.x/avataaars/svg?seed=${otherUsername}&backgroundColor=b6e3f4`;
@@ -119,6 +139,80 @@ const RealDmView = ({
     typingTimeout.current = setTimeout(() => {}, 2000);
   };
 
+  // ── Voice recording ───────────────────────────────────────────────────────────
+  const startRecording = async () => {
+    if (blocked) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const ext = mimeType.includes("webm") ? "webm" : "mp4";
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (blob.size < 200) return; // Too short, discard
+        const file = new File([blob], `voice_${Date.now()}.${ext}`, { type: mimeType });
+        setIsUploading(true);
+        try {
+          const url = await uploadMedia(file, file.name);
+          if (url) await sendMessage(url, "text"); // send as text; client detects audio URL
+        } catch {
+          /* silently fail */
+        } finally {
+          setIsUploading(false);
+        }
+      };
+
+      recorder.start(100);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration((d) => d + 1);
+      }, 1000);
+    } catch {
+      // Microphone permission denied or not supported
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current) {
+      // Remove the onstop handler so it doesn't upload
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingDuration(0);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
   // ── Media upload ─────────────────────────────────────────────────────────────
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files || blocked) return;
@@ -129,7 +223,8 @@ const RealDmView = ({
         const url = await uploadMedia(file, file.name);
         if (!url) continue;
         const isVideo = file.type.startsWith("video/");
-        await sendMessage(url, isVideo ? "video" : "image");
+        const isImage = file.type.startsWith("image/");
+        await sendMessage(url, isVideo ? "video" : isImage ? "image" : "text");
       }
     } catch {
       /* ignore upload errors */
@@ -191,18 +286,15 @@ const RealDmView = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Voice call */}
           <motion.button whileTap={{ scale: 0.88 }}
             className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
             <Phone className="w-4 h-4" />
           </motion.button>
-          {/* Search messages (replacing video call) */}
           <motion.button whileTap={{ scale: 0.88 }}
             onClick={() => { setShowSearch(v => !v); setSearchQuery(""); }}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showSearch ? "bg-foreground text-background" : "bg-secondary"}`}>
             <Search className="w-4 h-4" />
           </motion.button>
-          {/* More */}
           <motion.button whileTap={{ scale: 0.88 }}
             className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
             <MoreHorizontal className="w-4 h-4" />
@@ -281,15 +373,18 @@ const RealDmView = ({
 
           const bitmoji = decodeBitmojiSticker(msg.content ?? "");
 
-          // Image/video messages
+          // Media type detection
           const isImageMsg = msg.message_type === "image" ||
             (!bitmoji && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(msg.content ?? ""));
           const isVideoMsg = msg.message_type === "video" ||
             (!bitmoji && /\.(mp4|mov|webm)(\?|$)/i.test(msg.content ?? ""));
+          const isAudioMsg = !bitmoji && !isImageMsg && !isVideoMsg &&
+            /\.(mp3|wav|webm|ogg|m4a|aac)(\?|$)/i.test(msg.content ?? "");
+          const isDocMsg = !bitmoji && !isImageMsg && !isVideoMsg && !isAudioMsg &&
+            /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar)(\?|$)/i.test(msg.content ?? "");
 
           return (
             <Fragment key={msg.id}>
-              {/* Date separator */}
               {showDateSep && (
                 <div className="flex justify-center my-3 select-none">
                   <span className="px-3 py-1 rounded-full bg-secondary/80 text-[10px] font-bold text-muted-foreground shadow-sm">
@@ -298,7 +393,6 @@ const RealDmView = ({
                 </div>
               )}
 
-              {/* Message bubble */}
               <div className={`flex flex-col ${isMe ? "items-end" : "items-start"} gap-0.5`}>
                 {bitmoji ? (
                   <BitmojiStickerMessage text={msg.content} isMine={isMe} />
@@ -310,6 +404,17 @@ const RealDmView = ({
                   <div className={`max-w-[72%] rounded-2xl overflow-hidden ${isMe ? "rounded-br-sm" : "rounded-bl-sm"}`}>
                     <video src={msg.content} controls className="w-full max-h-72 object-cover" />
                   </div>
+                ) : isAudioMsg ? (
+                  <div className={`max-w-[80%] rounded-2xl overflow-hidden px-3 py-2 flex items-center gap-3 ${isMe ? "bg-foreground text-background rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
+                    <Mic className="w-4 h-4 shrink-0" />
+                    <audio src={msg.content} controls className="h-8 max-w-[180px]" />
+                  </div>
+                ) : isDocMsg ? (
+                  <a href={msg.content} target="_blank" rel="noopener noreferrer"
+                    className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-[13px] font-medium ${isMe ? "bg-foreground text-background rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
+                    <FileText className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{decodeURIComponent(msg.content.split("/").pop() || "Document")}</span>
+                  </a>
                 ) : (
                   <div className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl text-[14px] leading-relaxed break-words ${
                     isMe
@@ -419,62 +524,92 @@ const RealDmView = ({
             )}
           </AnimatePresence>
 
-          {/* ── Input bar ────────────────────────────────────────────────────── */}
-          <div className="px-3 pt-2 pb-7 flex items-end gap-2">
-            {/* + / × button */}
-            <motion.button
-              whileTap={{ scale: 0.88 }}
-              onClick={() => { setShowAttach(v => !v); setShowPicker(false); }}
-              className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${showAttach ? "bg-foreground text-background" : "bg-secondary"}`}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {showAttach
-                  ? <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
-                      <X className="w-4 h-4" />
-                    </motion.span>
-                  : <motion.span key="plus" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
-                      <Plus className="w-4 h-4" />
-                    </motion.span>
-                }
-              </AnimatePresence>
-            </motion.button>
-
-            {/* Text input */}
-            <div className="flex-1 flex items-end bg-secondary rounded-3xl px-3.5 py-2 min-h-[42px]">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={e => handleInputChange(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                onFocus={() => { setShowPicker(false); setShowAttach(false); }}
-                placeholder={isHelpCenter ? "Ask Help Center anything…" : "Message…"}
-                rows={1}
-                style={{ fontSize: 15, resize: "none" }}
-                className="flex-1 bg-transparent outline-none text-[14px] font-medium placeholder:text-muted-foreground/50 max-h-24 overflow-y-auto self-center"
-              />
-              {/* Emoji toggle inside input */}
-              <motion.button whileTap={{ scale: 0.88 }} onClick={() => { setShowPicker(v => !v); setShowAttach(false); }}
-                className={`ml-1 self-center transition-colors ${showPicker ? "text-foreground" : "text-muted-foreground/60"}`}>
-                <Smile className="w-4.5 h-4.5" />
-              </motion.button>
-            </div>
-
-            {/* Send / Mic */}
-            {input.trim() ? (
-              <motion.button whileTap={{ scale: 0.85 }} onClick={handleSend}
-                disabled={isSending}
-                className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center shrink-0 disabled:opacity-40">
-                {isSending
-                  ? <Loader2 className="w-4 h-4 text-background animate-spin" />
-                  : <Send className="w-4 h-4 text-background" strokeWidth={2} />}
-              </motion.button>
-            ) : (
-              <motion.button whileTap={{ scale: 0.88 }}
-                className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                <Mic className="w-4 h-4" />
-              </motion.button>
+          {/* ── Recording UI ─────────────────────────────────────────────────── */}
+          <AnimatePresence>
+            {isRecording && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                className="px-3 pt-2 pb-2 flex items-center gap-3"
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1, repeat: Infinity }}
+                  className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"
+                />
+                <span className="text-[13px] font-semibold text-red-500">
+                  Recording {formatDuration(recordingDuration)}
+                </span>
+                <div className="flex-1" />
+                <motion.button whileTap={{ scale: 0.88 }} onClick={cancelRecording}
+                  className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground">
+                  <X className="w-4 h-4" />
+                </motion.button>
+                <motion.button whileTap={{ scale: 0.88 }} onClick={stopRecording}
+                  className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center text-background">
+                  <StopCircle className="w-4 h-4" />
+                </motion.button>
+              </motion.div>
             )}
-          </div>
+          </AnimatePresence>
+
+          {/* ── Input bar ────────────────────────────────────────────────────── */}
+          {!isRecording && (
+            <div className="px-3 pt-2 pb-7 flex items-end gap-2">
+              {/* + / × button */}
+              <motion.button
+                whileTap={{ scale: 0.88 }}
+                onClick={() => { setShowAttach(v => !v); setShowPicker(false); }}
+                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${showAttach ? "bg-foreground text-background" : "bg-secondary"}`}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  {showAttach
+                    ? <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                        <X className="w-4 h-4" />
+                      </motion.span>
+                    : <motion.span key="plus" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                        <Plus className="w-4 h-4" />
+                      </motion.span>
+                  }
+                </AnimatePresence>
+              </motion.button>
+
+              {/* Text input */}
+              <div className="flex-1 flex items-end bg-secondary rounded-3xl px-3.5 py-2 min-h-[42px]">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => handleInputChange(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                  onFocus={() => { setShowPicker(false); setShowAttach(false); }}
+                  placeholder={isHelpCenter ? "Ask Help Center anything…" : "Message…"}
+                  rows={1}
+                  style={{ fontSize: 15, resize: "none" }}
+                  className="flex-1 bg-transparent outline-none text-[14px] font-medium placeholder:text-muted-foreground/50 max-h-24 overflow-y-auto self-center"
+                />
+                <motion.button whileTap={{ scale: 0.88 }} onClick={() => { setShowPicker(v => !v); setShowAttach(false); }}
+                  className={`ml-1 self-center transition-colors ${showPicker ? "text-foreground" : "text-muted-foreground/60"}`}>
+                  <Smile className="w-[18px] h-[18px]" />
+                </motion.button>
+              </div>
+
+              {/* Send / Mic */}
+              {input.trim() ? (
+                <motion.button whileTap={{ scale: 0.85 }} onClick={handleSend}
+                  disabled={isSending}
+                  className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center shrink-0 disabled:opacity-40">
+                  {isSending
+                    ? <Loader2 className="w-4 h-4 text-background animate-spin" />
+                    : <Send className="w-4 h-4 text-background" strokeWidth={2} />}
+                </motion.button>
+              ) : (
+                <motion.button
+                  whileTap={{ scale: 0.88 }}
+                  onClick={startRecording}
+                  className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                  <Mic className="w-4 h-4" />
+                </motion.button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

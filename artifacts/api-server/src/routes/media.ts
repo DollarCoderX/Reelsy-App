@@ -5,17 +5,18 @@ import { getSupabaseClient } from '../lib/supabase';
 const router = Router();
 
 // Use memory storage so we can stream directly to Supabase Storage
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+// Increase limit to 100 MB to support documents and larger videos
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 const BUCKET = 'media';
 
 async function ensureBucket() {
   try {
     const client = getSupabaseClient();
+    // Create bucket without MIME restrictions so any file type is accepted
     const { error } = await client.storage.createBucket(BUCKET, {
       public: true,
-      fileSizeLimit: 52428800,
-      allowedMimeTypes: ['image/*', 'video/*', 'audio/*'],
+      fileSizeLimit: 104857600, // 100 MB
     });
     if (error && error.message !== 'The resource already exists') {
       console.warn('Could not create storage bucket:', error.message);
@@ -46,9 +47,15 @@ router.post('/media/upload', upload.single('file'), async (req: Request, res: Re
     }
 
     const { data: { publicUrl } } = client.storage.from(BUCKET).getPublicUrl(filename);
-    const mediaType = file.mimetype.startsWith('video') ? 'video' : file.mimetype.startsWith('audio') ? 'audio' : 'image';
 
-    return res.status(200).json({ mediaUrl: publicUrl, mediaType });
+    // Determine media type for the client
+    let mediaType: 'image' | 'video' | 'audio' | 'document';
+    if (file.mimetype.startsWith('video/')) mediaType = 'video';
+    else if (file.mimetype.startsWith('audio/')) mediaType = 'audio';
+    else if (file.mimetype.startsWith('image/')) mediaType = 'image';
+    else mediaType = 'document';
+
+    return res.status(200).json({ mediaUrl: publicUrl, mediaType, originalName: file.originalname, size: file.size });
   } catch (err) {
     console.error('Upload error', err);
     return res.status(500).json({ error: 'Upload failed' });
