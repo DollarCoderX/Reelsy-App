@@ -59,7 +59,7 @@ export default function FeatureIntroSheet({
                   onClick={() => setShowDetail(true)}
                   className="text-blue-500 font-semibold text-[13px] active:opacity-70 transition-opacity"
                 >
-                  {learnMoreText} →
+                  {learnMoreText}
                 </button>
               </div>
 

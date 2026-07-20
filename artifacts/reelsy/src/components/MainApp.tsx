@@ -375,9 +375,8 @@ const MainAppInner = () => {
           />
           <div>
             <p className="font-bold text-[16px] tracking-tight leading-none">Reelsy</p>
-            <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
-              by Uraincle
-            </p>
+           
+          
           </div>
         </div>
 

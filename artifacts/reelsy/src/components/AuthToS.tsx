@@ -39,16 +39,13 @@ const TermsModal = ({ onClose }: { onClose: () => void }) => (
         <p className="font-bold text-foreground text-[13px] mb-1">4. Privacy</p>
         <p>Reelsy does not sell your data. We collect minimal data required to operate the platform. Your messages are end-to-end encrypted. See our Privacy Policy for full details.</p>
       </div>
+   
       <div>
-        <p className="font-bold text-foreground text-[13px] mb-1">5. Regional Availability</p>
-        <p>Due to reasons Reelsy is not available in all countries of the world. Using VPN to bypass regional restrictions violates these terms and may result in account termination.</p>
-      </div>
-      <div>
-        <p className="font-bold text-foreground text-[13px] mb-1">6. Account Termination</p>
+        <p className="font-bold text-foreground text-[13px] mb-1">5. Account Termination</p>
         <p>Reelsy reserves the right to suspend or terminate accounts that violate these terms. You may delete your account at any time from Settings.</p>
       </div>
       <div>
-        <p className="font-bold text-foreground text-[13px] mb-1">7. Changes to Terms</p>
+        <p className="font-bold text-foreground text-[13px] mb-1">6. Changes to Terms</p>
         <p>We may update these terms from time to time. Continued use of Reelsy after changes constitutes acceptance of the updated terms.</p>
       </div>
     </div>

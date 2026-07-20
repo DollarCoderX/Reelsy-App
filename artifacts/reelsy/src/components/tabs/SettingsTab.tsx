@@ -1407,21 +1407,17 @@ const TermsSheet = ({ onClose }: { onClose: () => void }) => (
       </div>
       <div>
         <p className="font-bold text-foreground text-[13px] mb-1">5. Subscriptions & Billing</p>
-        <p>Paid plans are billed monthly. You may cancel anytime. Refunds are handled case-by-case by our support team. verified tier is invite-only and not purchasable.</p>
+        <p>Paid plans are billed monthly. You may cancel anytime. Refunds are handled case-by-case by our support team.</p>
       </div>
       <div>
-        <p className="font-bold text-foreground text-[13px] mb-1">6. Region Avaliablity</p>
-        <p>Due to reasons Reelsy is not available in all countries of the world, but we will keep pushing to make it available for more countries. If your contry is among the non-region Availability, you are not authorized to use vpn due to our Terms and conditions, and if you successfully bypass reelsy ip and vpn check you risk your account being banned because Reelsy ip and vpn check gets updated frequently. You are required to use the official Reelsy Lite available in Google Playstore or wait until Reelsy is available in your country.</p>
-      </div>
-      <div>
-        <p className="font-bold text-foreground text-[13px] mb-1">7. Termination</p>
+        <p className="font-bold text-foreground text-[13px] mb-1">6. Termination</p>
         <p>Reelsy reserves the right to suspend or terminate accounts that violate these terms. You may delete your account at any time from Settings.</p>
       </div>
       <div>
-        <p className="font-bold text-foreground text-[13px] mb-1">8. Changes to Terms</p>
+        <p className="font-bold text-foreground text-[13px] mb-1">7. Changes to Terms</p>
         <p>We may update these terms from time to time. Continued use of Reelsy after changes constitutes acceptance of the updated terms.</p>
       </div>
-      <p className="text-[11px] text-muted-foreground/60 pt-2">Last updated: January 2026 · Uraincle Ltd.</p>
+      <p className="text-[11px] text-muted-foreground/60 pt-2">Last updated: July 2026 ·</p>
     </div>
   </motion.div>
 );
@@ -1706,8 +1702,6 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
             <SettingRow icon={Mail} label={t("Email")} value={user?.email ? user.email.replace(/(.{2}).*(@.*)/, "$1…$2") : undefined} />
             <PhoneNumberRow />
             <SettingRow icon={Users} label="Accounts" value={tier === "free" ? "Pro" : undefined} onPress={() => setSheet("accounts")} />
-            <SettingRow icon={UserCircle2} label="Avatar Builder" value={tier === "free" ? "Pro" : "Custom"} onPress={() => setAvatarBuilderOpen(true)} />
-            <SettingRow icon={VerifiedIcon} label={t("Get Verified Badge")} onPress={() => setSheet("verification")} />
             <SettingRow icon={Shield} label={t("Privacy")} onPress={() => setSheet("privacy")} />
           </Section>
 
@@ -1767,7 +1761,7 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
             <SettingRow icon={Star} label={t("Rate Reelsy")} onPress={() => setSheet("rate")} />
           </Section>
 
-          <p className="text-center text-[11px] text-muted-foreground pt-1">Reelsy v2.5.0 · Made by Uraincle</p>
+          <p className="text-center text-[11px] text-muted-foreground pt-1">Reelsy v6.2.1 ·</p>
 
           <motion.button initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.22 }}

@@ -1843,12 +1843,7 @@ const HomeTab = ({ onNavVisible }: HomeTabProps) => {
     : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || "user"}&backgroundColor=b6e3f4`;
 
   const NOTIFS = [
-    { name: "Amara Osei", action: "liked your post", time: "2m", seed: "Amara" },
-    { name: "Jay Rowe", action: "commented on your post", time: "15m", seed: "Jay" },
-    { name: "Nova Reeves", action: "followed you", time: "1h", seed: "Nova" },
-    { name: "Priya Nair", action: "reposted your content", time: "2h", seed: "Priya" },
-    { name: "Kofi Asante", action: "mentioned you in a post", time: "3h", seed: "Kofi" },
-  ];
+    ];
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background">

@@ -263,7 +263,6 @@ const ActivityTab = () => {
     { id: "pic", label: "Pic", icon: ImageIcon },
     { id: "video", label: "Video", icon: Video },
     { id: "save", label: "Save", icon: Bookmark },
-    { id: "memory", label: "Memory", icon: Clock },
     { id: "draft", label: "Draft", icon: Edit2 },
   ] as const;
 

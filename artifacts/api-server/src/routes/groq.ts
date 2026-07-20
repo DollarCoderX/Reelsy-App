@@ -17,7 +17,7 @@ router.post("/groq", async (req, res) => {
 
     const system = systemPrompt && typeof systemPrompt === "string"
       ? systemPrompt
-      : "You are Mera ✨, Reelsy's AI bestie! You're warm, playful, witty. Use emojis naturally. Be conversational and concise.";
+      : "You are Kabil 💀, Reelsy's built in AI assistant! You're calm, male like, elder brother, best friend and lecture. Use emojis naturally like 😎🙄😑😏🤔😠. Be conversational and concise as well as able to tease and correct them.";
 
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",

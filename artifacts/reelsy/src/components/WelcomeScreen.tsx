@@ -67,10 +67,13 @@ const WelcomeScreen = () => {
           className="w-full py-4 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-sm disabled:opacity-50">
           {loading ? "Checking..." : "Get Started"}
         </motion.button>
-        <button onClick={handleGetStarted} disabled={loading}
-          className="w-full py-3 text-[13px] text-muted-foreground font-medium disabled:opacity-50">
-          Already have an account? <span className="text-foreground underline underline-offset-2">Sign in</span>
-        </button>
+        <div className="flex items-center justify-center gap-1.5">
+          <span className="text-[13px] text-muted-foreground">Already have an account?</span>
+          <button onClick={() => setAppPhase("auth-login")}
+            className="text-[13px] font-semibold text-foreground hover:opacity-70 transition-opacity">
+            Sign in
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );

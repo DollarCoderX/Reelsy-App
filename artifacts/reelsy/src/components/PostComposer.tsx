@@ -604,7 +604,7 @@ ${input}`);
                     className="fixed inset-0 z-10" onClick={() => setShowAudience(false)} />
                   <motion.div initial={{ opacity: 0, scale: 0.9, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    className="absolute right-0 top-9 z-20 bg-background rounded-2xl shadow-2xl overflow-hidden w-40 border border-secondary/60">
+                    className="absolute left-0 top-9 z-20 bg-background rounded-2xl shadow-2xl overflow-hidden w-40 border border-secondary/60">
                     {AUDIENCES.map((a, i) => (
                       <button key={a} onClick={() => { setAudience(a); setShowAudience(false); }}
                         className={`w-full px-4 py-3 text-left text-[13px] font-medium ${i > 0 ? "border-t border-secondary/40" : ""} ${audience === a ? "font-bold" : ""}`}>

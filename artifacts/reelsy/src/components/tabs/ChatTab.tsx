@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, Fragment, useMemo } from "react";
 import { useConversations } from "@/hooks/useMessages";
 import { motion, AnimatePresence } from "framer-motion";
+import meralogo from "@assets/mera.jpg";
 import {
   ChevronLeft, Search, Edit3, X, Send, Mic, BadgeCheckIcon,
   Check, CheckCheck, Phone, Video, MoreHorizontal, Reply, Coffee, Globe,
@@ -81,9 +82,10 @@ const buildPollinationsImageUrl = (prompt: string) =>
   `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Date.now()}`;
 
 const MeraLogo = ({ className = "w-full h-full" }: { className?: string }) => (
-  <div className={`${className} rounded-full bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,.9),rgba(255,255,255,.24)_24%,rgba(99,102,241,.42)_52%,rgba(14,165,233,.36))] border border-white/40 shadow-inner flex items-center justify-center overflow-hidden`}>
-    <div className="h-1/2 w-1/2 rounded-full bg-white/25 backdrop-blur-md border border-white/40" />
-  </div>
+<img
+ src={meralogo}
+          
+        />
 );
 
 // ---- IMPROVED Animated emoji map ----
@@ -172,8 +174,7 @@ const AnimatedEmoji = ({ emoji, isMine }: { emoji: string; isMine: boolean }) =>
 
 // ---- Reelsy official messages ----
 const REELSY_MSGS: ChatMessage[] = [
-  { id: 1, fromName: "Reelsy", content: "Welcome to Reelsy! Your new social home. Reelsy offers you a private end to end encrypted place for you, your friends and family.", time: "9:00 AM", isMine: false },
-  { id: 2, fromName: "Reelsy", content: "📢 Announcement: Reelsy v2.0 is live! New features include Reelsy Bot V5 and premium navigator customization. Enjoy!", time: "9:01 AM", isMine: false },
+  { id: 1, fromName: "Reelsy", content: "Welcome to Reelsy! Your new social home. Reelsy offers you a private end to end encrypted place for you, your friends and family. Our team desgined Reelsy with advanced privacy fetures, end to end encrytion and more.", time: "9:00 AM", isMine: false },
 ];
 
 // ---- ReelsyBot V5 ----
@@ -2239,19 +2240,8 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     const base: ChatThread[] = [
       { id: "reelsy-official", name: "Reelsy", lastMessage: "Welcome to Reelsy! 🎉", time: "now", unread: 1, isGroup: false, isReelsy: true, pinned: true },
       { id: "help-center", name: "Help Center", lastMessage: "Ask me anything about Reelsy 🐋", time: "now", unread: 1, isGroup: false, isHelpCenter: true, pinned: true },
-      { id: "mera-ai", name: "Mera", lastMessage: "Hey bestie! ✨ I'm here for it 💫", time: "now", unread: 1, isGroup: false, isMeraAi: true, pinned: true },
-      { id: "reelsy-bot", name: "ReelsyBot", lastMessage: "Send .menu to see all commands", time: "now", unread: 1, isGroup: false, isReelsyBot: true, pinned: true },
-      { id: "mock-group-1", name: "Creators Chain 🎬", lastMessage: "Sarah: Let's launch this tonight! 🔥🔥🔥", time: "25m", unread: 5, isGroup: true, members: ["kabil", "sarah", "micheal", "jacob"], pinned: true },
-      ...BOTS.map((b) => ({
-        id: b.id, name: b.name, botId: b.id,
-        lastMessage: friendBotIds.includes(b.id)
-          ? `${b.name} accepted your friend request. Say hi!`
-          : (BOT_INTRO_MESSAGES.filter((m) => m.botId === b.id)[0]?.text) || "Hey!",
-        time: friendBotIds.includes(b.id) ? "now" : `${Math.floor(Math.random() * 55) + 2}m`,
-        unread: friendBotIds.includes(b.id) ? 1 : b.online ? 1 : 0,
-        isGroup: false,
-        pinned: friendBotIds.includes(b.id),
-      })),
+      { id: "mera-ai", name: "Kabil", lastMessage: "Hi, my name is kabil am reelsy built in ai assistant ready to assist you.", time: "now", unread: 1, isGroup: false, isMeraAi: true, pinned: true },
+       
     ];
     if (reelsyNumber) {
       base.splice(1, 0, { id: "sms", name: "SMS", lastMessage: "Your Reelsy number is active.", time: "now", unread: 1, isGroup: false, isSMS: true, pinned: true });
@@ -2415,8 +2405,8 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
       init["mera-ai"] = [
         {
           id: 1,
-          fromName: "Mera",
-          content: "Hey bestie! ✨ I'm Mera, your Reelsy AI companion 💫 Ask me to write, brainstorm, explain anything, roast your captions, generate images, or just vibe — I'm here for all of it 🎉",
+          fromName: "Kabil",
+          content: "Hi, my name is kabil am reelsy built in ai assistant ready to assist you.",
           time: "now",
           isMine: false,
         },
@@ -2663,8 +2653,8 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
         const reply: ChatMessage = wantsImage
           ? {
               id: Date.now() + 1,
-              fromName: "Mera",
-              content: "I generated this image for you.",
+              fromName: "Kabil",
+              content: "Here's your image.",
               time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               isMine: false,
               mediaType: "image",
@@ -2672,8 +2662,8 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
             }
           : {
               id: Date.now() + 1,
-              fromName: "Mera",
-              content: await generateText(`You are Mera ✨, Reelsy's AI bestie! You're warm, playful, witty, and genuinely excited to help 💫 Use emojis naturally (not excessively). Be conversational — like texting a brilliant, funny friend. You can write captions, brainstorm ideas, explain things, give advice, roast drafts, talk about anything. Keep it punchy (2-4 sentences) unless the person clearly wants depth. Never be stiff or robotic.\n\nUser message: ${text}`, 300),
+              fromName: "Kabil",
+              content: await generateText(`You are Kabil 💀, Reelsy's built in AI assistant! You're calm, male like, elder brother, best friend and lecture. Use emojis naturally like 😎🙄😑😏🤔😠. Be conversational and concise as well as able to tease and correct them.\n\nUser message: ${text}`, 300),
               time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               isMine: false,
             };
@@ -3286,10 +3276,13 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
                           transition={{ type: "spring", stiffness: 450, damping: 26 }}
                           className="absolute right-0 top-10 z-40 bg-background rounded-2xl shadow-2xl overflow-hidden w-52 border border-secondary/60">
                           {[
-                            { icon: Palette, label: "Set Wallpaper", action: () => { setShowChatMenu(false); setShowWallpaperPicker(true); } },
+                                                          { icon: Flag, label: "Report User", action: () => { setShowChatMenu(false); setShowReport(true); } },
+
+                                         ...(!activeThread.isReelsy && !activeThread.isSMS ? [
+                              { icon: Palette, label: "Set Wallpaper", action: () => { setShowChatMenu(false); setShowWallpaperPicker(true); } },
                             { icon: mutedIds.includes(activeId!) ? Volume2 : BellOff, label: mutedIds.includes(activeId!) ? "Unmute" : "Mute", action: () => { setMutedIds((p) => p.includes(activeId!) ? p.filter((id) => id !== activeId) : [...p, activeId!]); setShowChatMenu(false); } },
                             { icon: Eraser, label: "Clear Chat", action: () => { if (activeId) setMessages((p) => ({ ...p, [activeId]: [] })); setShowChatMenu(false); } },
-                            ...(!activeThread.isReelsy && !activeThread.isSMS ? [
+                          
                               { icon: Flag, label: "Report User", action: () => { setShowChatMenu(false); setShowReport(true); } },
                               { icon: UserX, label: "Block User", action: () => { setShowChatMenu(false); setShowBlockConfirm(true); } },
                             ] : []),
