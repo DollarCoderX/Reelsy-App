@@ -86,7 +86,7 @@ const RealUserProfileView = ({
   onClose: () => void;
   onMessage?: (user: ApiUserProfile) => void;
 }) => {
-  const { user: me } = useAppContext();
+  const { user: me, setPendingDmUser } = useAppContext();
   const { sendRequest, statusCache, loading: friendLoading, acceptRequest, declineRequest, getStatus } = useFriends();
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -262,9 +262,12 @@ const RealUserProfileView = ({
                   <button
                     onClick={() => {
                       if (isStartingDm) return;
-                      localStorage.setItem("reelsy_open_dm_username", realUser.username || "");
-                      localStorage.setItem("reelsy_open_dm_displayName", realUser.displayName || realUser.username || "");
-                      localStorage.setItem("reelsy_open_dm_avatar", realUser.profileImage || "");
+                      // Use context directly so ChatTab reacts instantly — no localStorage delay
+                      setPendingDmUser({
+                        username: realUser.username || "",
+                        displayName: realUser.displayName || realUser.username || "",
+                        avatar: realUser.profileImage || undefined,
+                      });
                       onMessage(realUser);
                       onClose();
                     }}

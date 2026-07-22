@@ -24,35 +24,45 @@ const AuthOTP = () => {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
+  const verifyCode = async (code: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail, code }),
+      });
+      if (!res.ok) throw new Error("Invalid or expired code");
+      setAppPhase("auth-password");
+    } catch {
+      showToast("Invalid or expired code");
+      setOtp(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleChange = async (idx: number, val: string) => {
     const digit = val.replace(/[^A-Za-z0-9]/g, "").slice(-1).toUpperCase();
     const next = [...otp];
     next[idx] = digit;
     setOtp(next);
     if (digit && idx < 5) inputRefs.current[idx + 1]?.focus();
-    if (next.every((d) => d !== "")) {
-      setIsLoading(true);
-      try {
-        const code = next.join("");
-        const res = await fetch("/api/auth/verify-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: authEmail, code })
-        });
-        
-        if (!res.ok) {
-          throw new Error("Invalid or expired code");
-        }
-        
-        setAppPhase("auth-password");
-      } catch (err) {
-        showToast("Invalid or expired code");
-        setOtp(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
-      } finally {
-        setIsLoading(false);
-      }
-    }
+    if (next.every((d) => d !== "")) verifyCode(next.join(""));
+  };
+
+  /** Allow pasting the full code — no need to type digit-by-digit. */
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/[^A-Za-z0-9]/g, "").slice(0, 6).toUpperCase();
+    if (!pasted) return;
+    const digits = pasted.split("");
+    const next = Array(6).fill("").map((_, i) => digits[i] || "");
+    setOtp(next);
+    const lastFill = Math.min(pasted.length - 1, 5);
+    inputRefs.current[lastFill]?.focus();
+    if (pasted.length >= 6) verifyCode(pasted.slice(0, 6));
   };
 
   const handleKeyDown = (idx: number, e: React.KeyboardEvent) => {
@@ -98,7 +108,7 @@ const AuthOTP = () => {
                 ref={(el) => { inputRefs.current[i] = el; }}
                 type="text" maxLength={1}
                 value={digit} onChange={(e) => handleChange(i, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(i, e)} disabled={isLoading}
+                onKeyDown={(e) => handleKeyDown(i, e)} onPaste={handlePaste} disabled={isLoading}
                 style={{ fontSize: 18, touchAction: "manipulation" }}
                 animate={{
                   scale: digit ? 1.04 : 1,

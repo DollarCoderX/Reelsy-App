@@ -48,6 +48,12 @@ export interface Draft {
 }
 
 
+export interface PendingDmUser {
+  username: string;
+  displayName: string;
+  avatar?: string;
+}
+
 interface AppContextType {
   appPhase: AppPhase;
   setAppPhase: (phase: AppPhase) => void;
@@ -75,6 +81,9 @@ interface AppContextType {
   setArchivedMessages: (messages: Set<string>) => void;
   draftFirstTimeSeen: boolean;
   setDraftFirstTimeSeen: (seen: boolean) => void;
+  /** Set to open a DM with a user instantly from anywhere in the app. ChatTab reads and clears this. */
+  pendingDmUser: PendingDmUser | null;
+  setPendingDmUser: (user: PendingDmUser | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -252,6 +261,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [draftTimestamps, setDraftTimestamps] = useState<Record<string, number>>({});
   const [archivedMessages, setArchivedMessages] = useState<Set<string>>(new Set());
   const [draftFirstTimeSeen, setDraftFirstTimeSeen] = useState(false);
+  const [pendingDmUser, setPendingDmUser] = useState<PendingDmUser | null>(null);
   const ip = useIPRestriction();
 
   useEffect(() => {
@@ -336,7 +346,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       language, setLanguage, t: (key: string) => translate(language, key),
       reelsyNumber, setReelsyNumber, authEmail, setAuthEmail, authPassword, setAuthPassword, ip,
       chatWallpaper, setChatWallpaper, draftTimestamps, setDraftTimestamps,
-      archivedMessages, setArchivedMessages, draftFirstTimeSeen, setDraftFirstTimeSeen
+      archivedMessages, setArchivedMessages, draftFirstTimeSeen, setDraftFirstTimeSeen,
+      pendingDmUser, setPendingDmUser,
     }}>
       {children}
     </AppContext.Provider>

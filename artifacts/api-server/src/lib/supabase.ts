@@ -210,15 +210,13 @@ export async function checkSupabaseUserStatus(userId: string): Promise<{
 
     // 3. Check email confirmation status
     if (!user.email_confirmed_at) {
-      // Email is not confirmed
+      // Email is not confirmed — log it but do NOT disable the account.
+      // Google OAuth users have their email pre-verified by Google; we confirm
+      // it via confirmUserEmail() in the signin-google route before the session
+      // is returned, so treating this as a disable would create a race condition
+      // that shows users a false "suspended / email not confirmed" screen.
       changes.push('email_not_confirmed');
-      console.log(`User ${userId} email not confirmed`);
-      
-      // Only disable if they require confirmation and haven't confirmed
-      if (!user.user_metadata?.skip_email_check && !isDisabled) {
-        isDisabled = true;
-        reason = reason || 'Email address not confirmed';
-      }
+      console.log(`User ${userId} email not confirmed (informational only)`);
     } else {
       changes.push('email_confirmed');
     }

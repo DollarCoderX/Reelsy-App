@@ -47,21 +47,35 @@ function formatDuration(secs: number) {
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
 }
 
-// ── GIF list (same as ChatTab) ────────────────────────────────────────────────
+// ── GIF list — uses media2.giphy.com (newer, more reliable CDN endpoint) ───────
 const MOCK_GIFS = [
-  "https://media.giphy.com/media/t3s3qLjpAgIauWToaa/giphy.gif",
-  "https://media.giphy.com/media/2UIgpwSZp39549o6Je/giphy.gif",
-  "https://media.giphy.com/media/C21GGDOpKT6Z4Nu95j/giphy.gif",
-  "https://media.giphy.com/media/l0MYEqEzw5aK9qvjG/giphy.gif",
-  "https://media.giphy.com/media/3NtY188QaxDdC/giphy.gif",
-  "https://media.giphy.com/media/tJqyalvo9ahykfykAj/giphy.gif",
-  "https://media.giphy.com/media/CdfaW3hE90d6G63zKx/giphy.gif",
-  "https://media.giphy.com/media/Zdg9HshX3GqQ0b7nLo/giphy.gif",
+  "https://media2.giphy.com/media/JIX9t2j0ZTN9S/200.gif",
+  "https://media2.giphy.com/media/26BRsq6aK1YMRWBEY/200.gif",
+  "https://media2.giphy.com/media/3oEjI6SIIHBdRxXI40/200.gif",
+  "https://media2.giphy.com/media/ZqlnoxdnSFKOk/200.gif",
+  "https://media2.giphy.com/media/7bnlL9h6Sn2kk/200.gif",
+  "https://media2.giphy.com/media/xT9IgEx8SbX0teblYA/200.gif",
+  "https://media2.giphy.com/media/l0MYEqEzw5aK9qvjG/200.gif",
+  "https://media2.giphy.com/media/3NtY188QaxDdC/200.gif",
 ];
 
 const STICKER_ROWS = [
-  { name: "Fun", items: ["https://media.giphy.com/media/3o6Zt6KHxJTbXCnSvu/giphy.gif","https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif","https://media.giphy.com/media/xT9IgEx8SbX0teblYA/giphy.gif","https://media.giphy.com/media/3o85xIO33l7RlmLjIQ/giphy.gif","https://media.giphy.com/media/l0MYBOiVDglkOjUkE/giphy.gif","https://media.giphy.com/media/l0HlDy9x8FZo0XO1i/giphy.gif"] },
-  { name: "Love", items: ["https://media.giphy.com/media/3o6ZtayqNLLr6rS9te/giphy.gif","https://media.giphy.com/media/3o6ZsYq8d0MRs2bkIU/giphy.gif","https://media.giphy.com/media/5xtDarmwsuR9sDROiuY/giphy.gif","https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif","https://media.giphy.com/media/3o6ZtpWv7U8Vjz3WIg/giphy.gif","https://media.giphy.com/media/3o6ZsXwuGZLV4YUd3a/giphy.gif"] },
+  { name: "Fun", items: [
+    "https://media2.giphy.com/media/JIX9t2j0ZTN9S/200.gif",
+    "https://media2.giphy.com/media/26BRsq6aK1YMRWBEY/200.gif",
+    "https://media2.giphy.com/media/3oEjI6SIIHBdRxXI40/200.gif",
+    "https://media2.giphy.com/media/ZqlnoxdnSFKOk/200.gif",
+    "https://media2.giphy.com/media/xT9IgEx8SbX0teblYA/200.gif",
+    "https://media2.giphy.com/media/7bnlL9h6Sn2kk/200.gif",
+  ] },
+  { name: "Love", items: [
+    "https://media2.giphy.com/media/l3q2K5jinAlChoCLS/200.gif",
+    "https://media2.giphy.com/media/5xtDarmwsuR9sDROiuY/200.gif",
+    "https://media2.giphy.com/media/ICOgUNjpvO0PC/200.gif",
+    "https://media2.giphy.com/media/WS6CDvv96vCDK/200.gif",
+    "https://media2.giphy.com/media/hvdaGMfgbKLfk/200.gif",
+    "https://media2.giphy.com/media/3o6ZtayqNLLr6rS9te/200.gif",
+  ] },
 ];
 
 const EMOJI_GRID = ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","😉","😊","🥰","😍","😘","😎","🥺","😭","😡","🤔","😈","👋","👍","👎","🙏","👏","💪","🔥","✨","🎉","💯","❤️","🧡","💛","💚","💙","💜","🖤","💔","💕","🎵","🎶","🚀","✈️","🌍","⚽","🏀","🎮","💎","🎁","🏆"];
@@ -80,16 +94,122 @@ const ATTACH_ITEMS = [
   { key: "quick",     label: "Quick replies",     icon: Zap,         color: "bg-yellow-500" },
 ] as const;
 
-// ── Local VoiceCallOverlay ────────────────────────────────────────────────────
-const VoiceCallOverlay = ({ name, avatar, onClose }: { name: string; avatar?: string; onClose: () => void }) => {
+// ── Local VoiceCallOverlay — real WebRTC audio via Supabase signalling ─────────
+const VoiceCallOverlay = ({
+  name, avatar, onClose, conversationId, myUsername,
+}: {
+  name: string; avatar?: string; onClose: () => void;
+  conversationId: string; myUsername: string;
+}) => {
   const [duration, setDuration] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [speaker, setSpeaker] = useState(true);
+  const [status, setStatus] = useState<"connecting" | "ringing" | "connected" | "failed">("connecting");
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const channelRef = useRef<any>(null);
+
   useEffect(() => {
-    const t = setInterval(() => setDuration(d => d + 1), 1000);
-    return () => clearInterval(t);
+    const init = async () => {
+      try {
+        // 1. Capture local mic
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStreamRef.current = stream;
+
+        // 2. Create peer connection with public STUN servers
+        const pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:stun2.l.google.com:19302" },
+          ],
+        });
+        pcRef.current = pc;
+        stream.getTracks().forEach(t => pc.addTrack(t, stream));
+
+        // 3. Play remote audio when it arrives
+        pc.ontrack = (e) => {
+          if (!remoteAudioRef.current) remoteAudioRef.current = new Audio();
+          remoteAudioRef.current.srcObject = e.streams[0];
+          remoteAudioRef.current.play().catch(() => {});
+          setStatus("connected");
+        };
+
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "failed") setStatus("failed");
+          if (pc.connectionState === "connected") setStatus("connected");
+        };
+
+        // 4. Use Supabase channel as signalling layer
+        const { supabase: sb } = await import("@/lib/supabase-client");
+        const channelName = `voice-${conversationId}-${[myUsername, name].sort().join("-")}`;
+        const ch = sb.channel(channelName, { config: { broadcast: { self: false } } });
+        channelRef.current = ch;
+
+        ch.on("broadcast", { event: "signal" }, async ({ payload }: any) => {
+          if (!pcRef.current) return;
+          try {
+            if (payload.type === "offer") {
+              await pcRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+              const answer = await pcRef.current.createAnswer();
+              await pcRef.current.setLocalDescription(answer);
+              ch.send({ type: "broadcast", event: "signal", payload: { type: "answer", sdp: answer } });
+              setStatus("connected");
+            } else if (payload.type === "answer") {
+              await pcRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            } else if (payload.type === "ice" && payload.candidate) {
+              await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {});
+            } else if (payload.type === "end") {
+              onClose();
+            }
+          } catch {}
+        });
+
+        pc.onicecandidate = (e) => {
+          if (e.candidate) {
+            ch.send({ type: "broadcast", event: "signal", payload: { type: "ice", candidate: e.candidate } });
+          }
+        };
+
+        await ch.subscribe();
+
+        // 5. Lower username acts as caller to break tie — sends offer
+        if (myUsername.toLowerCase() < name.toLowerCase()) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          ch.send({ type: "broadcast", event: "signal", payload: { type: "offer", sdp: offer } });
+        }
+        setStatus("ringing");
+      } catch {
+        setStatus("failed");
+      }
+    };
+
+    init();
+    const timer = setInterval(() => setDuration(d => d + 1), 1000);
+    return () => {
+      clearInterval(timer);
+      localStreamRef.current?.getTracks().forEach(t => t.stop());
+      pcRef.current?.close();
+      channelRef.current?.send({ type: "broadcast", event: "signal", payload: { type: "end" } });
+      channelRef.current?.unsubscribe();
+      remoteAudioRef.current?.pause();
+    };
   }, []);
+
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const statusLabel = status === "connecting" ? "Connecting…" : status === "ringing" ? "Calling…" : status === "failed" ? "Call failed" : fmt(duration);
+
+  const toggleMute = () => {
+    localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = muted; });
+    setMuted(m => !m);
+  };
+
+  const handleEnd = () => {
+    channelRef.current?.send({ type: "broadcast", event: "signal", payload: { type: "end" } });
+    onClose();
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="absolute inset-0 z-[60] flex flex-col items-center justify-between bg-gradient-to-b from-zinc-900 via-zinc-800 to-black pb-16 pt-20">
@@ -102,20 +222,20 @@ const VoiceCallOverlay = ({ name, avatar, onClose }: { name: string; avatar?: st
         </motion.div>
         <div className="text-center">
           <p className="text-white text-[22px] font-bold">{name}</p>
-          <p className="text-white/60 text-[14px] mt-1">{fmt(duration)}</p>
+          <p className="text-white/60 text-[14px] mt-1">{statusLabel}</p>
         </div>
       </div>
       <div className="flex items-center gap-6">
-        <motion.button whileTap={{ scale: 0.85 }} onClick={() => setMuted(!muted)}
+        <motion.button whileTap={{ scale: 0.85 }} onClick={toggleMute}
           className={`w-14 h-14 rounded-full flex items-center justify-center ${muted ? "bg-white text-black" : "bg-white/15 text-white"}`}>
           {muted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
         </motion.button>
-        <motion.button whileTap={{ scale: 0.85 }} onClick={onClose}
+        <motion.button whileTap={{ scale: 0.85 }} onClick={handleEnd}
           className="w-16 h-16 rounded-full bg-rose-500 flex items-center justify-center shadow-lg shadow-rose-500/30">
           <PhoneOff className="w-7 h-7 text-white" />
         </motion.button>
-        <motion.button whileTap={{ scale: 0.85 }} onClick={() => setSpeaker(!speaker)}
-          className={`w-14 h-14 rounded-full flex items-center justify-center ${speaker ? "bg-white/15 text-white" : "bg-white text-black"}`}>
+        <motion.button whileTap={{ scale: 0.85 }} onClick={() => {}}
+          className="w-14 h-14 rounded-full bg-white/15 text-white flex items-center justify-center">
           <Volume2 className="w-6 h-6" />
         </motion.button>
       </div>
@@ -1019,7 +1139,7 @@ const RealDmView = ({
 
       {/* ── Overlays ─────────────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {voiceCall && <VoiceCallOverlay name={otherDisplayName} avatar={otherAvatar} onClose={() => setVoiceCall(false)} />}
+        {voiceCall && <VoiceCallOverlay name={otherDisplayName} avatar={otherAvatar} onClose={() => setVoiceCall(false)} conversationId={conversationId} myUsername={user?.username || ""} />}
       </AnimatePresence>
       <AnimatePresence>
         {videoCall && <VideoCallOverlay name={otherDisplayName} avatar={otherAvatar} tier={tier} onClose={() => setVideoCall(false)} />}

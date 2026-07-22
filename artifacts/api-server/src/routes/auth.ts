@@ -920,7 +920,7 @@ router.post('/send-magic-link', async (req, res) => {
     }
 
     const token = generateMagicLinkToken(email.toLowerCase());
-    const appUrl = process.env.APP_URL || `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:8080'}`;
+    const appUrl = process.env.APP_URL || 'https://reelsy-com.vercel.app';
     const magicUrl = `${appUrl}?magic=${token}`;
 
     const { sendEmailViaBrevo } = await import('../lib/email');
@@ -1002,7 +1002,7 @@ router.post('/forgot-password', async (req, res) => {
 
     // Reuse magic link token for password reset flow
     const token = generateMagicLinkToken(email.toLowerCase());
-    const appUrl = process.env.APP_URL || `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:8080'}`;
+    const appUrl = process.env.APP_URL || 'https://reelsy-com.vercel.app';
     const resetUrl = `${appUrl}?reset=${token}`;
 
     const { sendEmailViaBrevo } = await import('../lib/email');

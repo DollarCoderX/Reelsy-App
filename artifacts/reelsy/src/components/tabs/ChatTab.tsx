@@ -656,61 +656,61 @@ const STICKER_CATEGORIES = {
   fun: {
     name: "Fun",
     stickers: [
-      "https://media.giphy.com/media/3o6Zt6KHxJTbXCnSvu/giphy.gif",
-      "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
-      "https://media.giphy.com/media/xT9IgEx8SbX0teblYA/giphy.gif",
-      "https://media.giphy.com/media/3o85xIO33l7RlmLjIQ/giphy.gif",
-      "https://media.giphy.com/media/l0MYQbDKDVZGPfvKg/giphy.gif",
-      "https://media.giphy.com/media/l0MYBOiVDglkOjUkE/giphy.gif",
-      "https://media.giphy.com/media/l0HlDy9x8FZo0XO1i/giphy.gif",
-      "https://media.giphy.com/media/l0MYVLGdcWmGwVdvW/giphy.gif",
-      "https://media.giphy.com/media/l0MYqpjxYWHJ6sXrG/giphy.gif",
-      "https://media.giphy.com/media/l0MYX5fFx6BDwgzWg/giphy.gif",
-      "https://media.giphy.com/media/3o6Yt6KCb64yjT51ia/giphy.gif",
-      "https://media.giphy.com/media/l0MYt0jWZQhB2IKOG/giphy.gif",
-      "https://media.giphy.com/media/26BRsq6aK1YMRWBEY/giphy.gif",
-      "https://media.giphy.com/media/7bnlL9h6Sn2kk/giphy.gif",
-      "https://media.giphy.com/media/3o6ZtIw25NdMkAiVm8/giphy.gif",
+      "https://media2.giphy.com/media/JIX9t2j0ZTN9S/200.gif",
+      "https://media2.giphy.com/media/26BRsq6aK1YMRWBEY/200.gif",
+      "https://media2.giphy.com/media/3oEjI6SIIHBdRxXI40/200.gif",
+      "https://media2.giphy.com/media/ZqlnoxdnSFKOk/200.gif",
+      "https://media2.giphy.com/media/7bnlL9h6Sn2kk/200.gif",
+      "https://media2.giphy.com/media/xT9IgEx8SbX0teblYA/200.gif",
+      "https://media2.giphy.com/media/l0MYEqEzw5aK9qvjG/200.gif",
+      "https://media2.giphy.com/media/3NtY188QaxDdC/200.gif",
+      "https://media2.giphy.com/media/3oz8xAFtqoOUUrsh7W/200.gif",
+      "https://media2.giphy.com/media/tXL4FHPSnVJ0A/200.gif",
+      "https://media2.giphy.com/media/l0HlNaQ6gWfllcjDO/200.gif",
+      "https://media2.giphy.com/media/5GoVLqeAOo6PK/200.gif",
+      "https://media2.giphy.com/media/blSTtZehjAZ8I/200.gif",
+      "https://media2.giphy.com/media/3o7TKTDn976rzVgky4/200.gif",
+      "https://media2.giphy.com/media/26BRBupa6nRXMGBO8/200.gif",
     ]
   },
   love: {
     name: "Love",
     stickers: [
-      "https://media.giphy.com/media/3o6ZtayqNLLr6rS9te/giphy.gif",
-      "https://media.giphy.com/media/l0HlWy9x8FZo0XO1i/giphy.gif",
-      "https://media.giphy.com/media/3o6ZsYq8d0MRs2bkIU/giphy.gif",
-      "https://media.giphy.com/media/l0HlG2MhFGcKwJnJS/giphy.gif",
-      "https://media.giphy.com/media/5xtDarmwsuR9sDROiuY/giphy.gif",
-      "https://media.giphy.com/media/l0HlWy9x8FZo0XO1i/giphy.gif",
-      "https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif",
-      "https://media.giphy.com/media/l0HlOSPxJNIqJDgDm/giphy.gif",
-      "https://media.giphy.com/media/3o6ZtpWv7U8Vjz3WIg/giphy.gif",
-      "https://media.giphy.com/media/3o6ZsXwuGZLV4YUd3a/giphy.gif",
-      "https://media.giphy.com/media/3o6ZsOVoNa2eFV6BuU/giphy.gif",
-      "https://media.giphy.com/media/l0HlQY9x8v6j1nH6M/giphy.gif",
-      "https://media.giphy.com/media/3o6Ztj3pHYisKl0LS8/giphy.gif",
-      "https://media.giphy.com/media/3o6Zt0uVxRh6wSGM6Q/giphy.gif",
-      "https://media.giphy.com/media/l0MYt0jWZQhB2IKOG/giphy.gif",
+      "https://media2.giphy.com/media/l3q2K5jinAlChoCLS/200.gif",
+      "https://media2.giphy.com/media/5xtDarmwsuR9sDROiuY/200.gif",
+      "https://media2.giphy.com/media/ICOgUNjpvO0PC/200.gif",
+      "https://media2.giphy.com/media/WS6CDvv96vCDK/200.gif",
+      "https://media2.giphy.com/media/hvdaGMfgbKLfk/200.gif",
+      "https://media2.giphy.com/media/3o6ZtayqNLLr6rS9te/200.gif",
+      "https://media2.giphy.com/media/3o6ZsYq8d0MRs2bkIU/200.gif",
+      "https://media2.giphy.com/media/3oEdv4mFBkjQkFPXqo/200.gif",
+      "https://media2.giphy.com/media/26FLgGTPUDH6UGAbm/200.gif",
+      "https://media2.giphy.com/media/3o6ZsXwuGZLV4YUd3a/200.gif",
+      "https://media2.giphy.com/media/l41YtBs6ql3SCFbHi/200.gif",
+      "https://media2.giphy.com/media/26n6WywJyh39n1pBu/200.gif",
+      "https://media2.giphy.com/media/26BRBDvn9p0jEkTkk/200.gif",
+      "https://media2.giphy.com/media/3o6Zt0uVxRh6wSGM6Q/200.gif",
+      "https://media2.giphy.com/media/3o6ZtpWv7U8Vjz3WIg/200.gif",
     ]
   },
   dance: {
     name: "Dance",
     stickers: [
-      "https://media.giphy.com/media/3o85xIO33l7RlmLjIQ/giphy.gif",
-      "https://media.giphy.com/media/l0HlUpf8ggyuLvCzG/giphy.gif",
-      "https://media.giphy.com/media/l0MYt0jWZQhB2IKOG/giphy.gif",
-      "https://media.giphy.com/media/3o6ZsYq8d0MRs2bkIU/giphy.gif",
-      "https://media.giphy.com/media/l0HlWy9x8FZo0XO1i/giphy.gif",
-      "https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif",
-      "https://media.giphy.com/media/l0HlOSPxJNIqJDgDm/giphy.gif",
-      "https://media.giphy.com/media/3o6ZtpWv7U8Vjz3WIg/giphy.gif",
-      "https://media.giphy.com/media/3o6ZsXwuGZLV4YUd3a/giphy.gif",
-      "https://media.giphy.com/media/3o6ZsOVoNa2eFV6BuU/giphy.gif",
-      "https://media.giphy.com/media/l0HlQY9x8v6j1nH6M/giphy.gif",
-      "https://media.giphy.com/media/3o6Ztj3pHYisKl0LS8/giphy.gif",
-      "https://media.giphy.com/media/3o6Zt0uVxRh6wSGM6Q/giphy.gif",
-      "https://media.giphy.com/media/l0MYt0jWZQhB2IKOG/giphy.gif",
-      "https://media.giphy.com/media/3o6Zt6KCb64yjT51ia/giphy.gif",
+      "https://media2.giphy.com/media/JIX9t2j0ZTN9S/200.gif",
+      "https://media2.giphy.com/media/l0HlUpf8ggyuLvCzG/200.gif",
+      "https://media2.giphy.com/media/3oEjI6SIIHBdRxXI40/200.gif",
+      "https://media2.giphy.com/media/ZqlnoxdnSFKOk/200.gif",
+      "https://media2.giphy.com/media/5C0a9LcGLcjSsytmRi/200.gif",
+      "https://media2.giphy.com/media/l3q2K5jinAlChoCLS/200.gif",
+      "https://media2.giphy.com/media/3oEduUQxFjJNAfcyha/200.gif",
+      "https://media2.giphy.com/media/26BRv0ThflsHCqDrG/200.gif",
+      "https://media2.giphy.com/media/3o6Zt0uVxRh6wSGM6Q/200.gif",
+      "https://media2.giphy.com/media/3o6ZsOVoNa2eFV6BuU/200.gif",
+      "https://media2.giphy.com/media/l0HlQY9x8v6j1nH6M/200.gif",
+      "https://media2.giphy.com/media/3o6Ztj3pHYisKl0LS8/200.gif",
+      "https://media2.giphy.com/media/3o6ZsXwuGZLV4YUd3a/200.gif",
+      "https://media2.giphy.com/media/l0MYt0jWZQhB2IKOG/200.gif",
+      "https://media2.giphy.com/media/3o6Zt6KCb64yjT51ia/200.gif",
     ]
   },
   animals: {
@@ -2228,7 +2228,7 @@ const BlockConfirm = ({ name, onBlock, onClose }: { name: string; onBlock: () =>
 
 // ---- Main ChatTab ----
 const ChatTab = ({ onNavVisible }: ChatTabProps) => {
-  const { reelsyNumber, tier, t, ip, user: me } = useAppContext();
+  const { reelsyNumber, tier, t, ip, user: me, pendingDmUser, setPendingDmUser } = useAppContext();
   const { requestFeatureIntro } = useFeatureIntro();
 
   // ── Real DM conversations (Supabase-backed) ──
@@ -2900,59 +2900,38 @@ const ChatTab = ({ onNavVisible }: ChatTabProps) => {
     return emojiRegex.test(trimmed) && trimmed.length <= 8;
   };
 
-  // Watch localStorage for DM opens triggered from profile pages
+  // React to context-based DM request (set by UserProfile — instant, no localStorage race)
   useEffect(() => {
-    const openPendingDm = async () => {
-      const otherUsername = localStorage.getItem("reelsy_open_dm_username");
-      if (!otherUsername) return;
-      localStorage.removeItem("reelsy_open_dm_username");
-      const otherDisplayName = localStorage.getItem("reelsy_open_dm_displayName") || otherUsername;
-      const otherAvatar = localStorage.getItem("reelsy_open_dm_avatar") || undefined;
-      localStorage.removeItem("reelsy_open_dm_displayName");
-      localStorage.removeItem("reelsy_open_dm_avatar");
+    if (!pendingDmUser || !me) return;
+    const { username, displayName, avatar } = pendingDmUser;
+    setPendingDmUser(null); // consume immediately
 
-      const myUsername = me?.username?.replace(/^@/, "");
-      if (!myUsername) return;
+    const myUsername = me.username?.replace(/^@/, "");
+    if (!myUsername) return;
 
-      try {
-        const { conversation } = await import("@/lib/api").then(m => m.api.messages.getOrCreateConversation({
-          myUserId: me?.supabaseId || myUsername,
-          myUsername,
-          myDisplayName: me?.nickname,
-          myAvatar: me?.avatar,
-          otherUserId: otherUsername.replace(/^@/, ""),
-          otherUsername: otherUsername.replace(/^@/, ""),
-          otherDisplayName,
-          otherAvatar,
-        }));
-        if (conversation?.id) {
-          setActiveDmConv({
-            id: conversation.id,
-            otherUsername: otherUsername.replace(/^@/, ""),
-            otherDisplayName,
-            otherAvatar,
-          });
-        }
-      } catch (err: any) {
-        if (err?.status === 403) {
-          // FRIENDS_ONLY — show locked UI
-          setActiveDmConv({
-            id: "blocked-" + otherUsername,
-            otherUsername: otherUsername.replace(/^@/, ""),
-            otherDisplayName,
-            otherAvatar,
-          });
-        }
+    const otherUsername = username.replace(/^@/, "");
+
+    import("@/lib/api").then(({ api }) =>
+      api.messages.getOrCreateConversation({
+        myUserId: me.supabaseId || myUsername,
+        myUsername,
+        myDisplayName: me.nickname,
+        myAvatar: me.avatar,
+        otherUserId: otherUsername,
+        otherUsername,
+        otherDisplayName: displayName,
+        otherAvatar: avatar,
+      })
+    ).then(({ conversation }) => {
+      if (conversation?.id) {
+        setActiveDmConv({ id: conversation.id, otherUsername, otherDisplayName: displayName, otherAvatar: avatar });
       }
-    };
-
-    openPendingDm();
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "reelsy_open_dm_username") openPendingDm();
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [me]);
+    }).catch((err: any) => {
+      if (err?.status === 403) {
+        setActiveDmConv({ id: "blocked-" + otherUsername, otherUsername, otherDisplayName: displayName, otherAvatar: avatar });
+      }
+    });
+  }, [pendingDmUser, me]);
 
   return (
     <div className="absolute inset-0 bg-background flex flex-col overflow-hidden">

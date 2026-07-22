@@ -80,6 +80,11 @@ export async function getUsersCollection(): Promise<Collection<ReelsyUser>> {
   return getMongoDBCollection('users') as unknown as Promise<Collection<ReelsyUser>>;
 }
 
+/** Returns the raw Db instance (needed for GridFS etc.) */
+export async function getDb(): Promise<Db> {
+  return connectMongoDB();
+}
+
 export async function disconnectMongoDB(): Promise<void> {
   if (client) {
     await client.close();
