@@ -56,18 +56,6 @@ expertMode = true
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
 
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8081
-externalPort = 8081
-
-[[ports]]
-localPort = 24017
-externalPort = 80
-
 [userenv]
 
 [userenv.shared]
@@ -76,6 +64,7 @@ API_PORT = "3000"
 MONGODB_DB = "reelsy"
 LOG_LEVEL = "info"
 NODE_ENV = "development"
+SERPER_API_KEY = "2fd99d47900a62609e9e6e838be1e99bc0869797"
 
 [nix]
 channel = "stable-25_05"
