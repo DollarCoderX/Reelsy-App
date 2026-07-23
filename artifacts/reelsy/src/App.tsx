@@ -53,6 +53,19 @@ function AppContent() {
   // Check for persisted user on mount
   useEffect(() => {
     const checkAuth = async () => {
+      // Priority 1: magic link token in the URL overrides everything else
+      const urlParams = new URLSearchParams(window.location.search);
+      const magicToken = urlParams.get("magic") || urlParams.get("magic_token");
+      if (magicToken) {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("magic");
+        cleanUrl.searchParams.delete("magic_token");
+        window.history.replaceState({}, "", cleanUrl.toString());
+        sessionStorage.setItem("reelsy_pending_magic_token", magicToken);
+        setAppPhase("auth-magic-link");
+        return;
+      }
+
       // If user already in context, check for ban/suspension
       if (user) {
         // Check if account is banned (highest priority)

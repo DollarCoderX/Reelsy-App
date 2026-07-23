@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { signOut as supabaseSignOut } from "@/lib/supabase-client";
-import { api } from "@/lib/api";
+import { api, uploadMedia } from "@/lib/api";
+import ImageCropper from "@/components/ImageCropper";
 
 import { AppLanguage, useAppContext } from "@/context/AppContext";
 import {
@@ -1574,6 +1575,8 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
     reelsyNumber, setReelsyNumber, language, t
   } = useAppContext();
   const coverInputRef = useRef<HTMLInputElement | null>(null);
+  const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
   const [twoFA, setTwoFA] = useState(false);
   const [betaFeatures, setBetaFeatures] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -1605,9 +1608,36 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
     const file = event.target.files?.[0];
     if (!file || !user) return;
     const reader = new FileReader();
-    reader.onload = (e) => setUser({ ...user, coverImage: e.target?.result as string });
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (dataUrl) setCropperSrc(dataUrl);
+    };
     reader.readAsDataURL(file);
     event.target.value = "";
+  };
+
+  const handleCropDone = async (dataUrl: string) => {
+    setCropperSrc(null);
+    if (!user) return;
+    setCoverUploading(true);
+    try {
+      // Convert dataURL to Blob and upload to GridFS
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const mediaUrl = await uploadMedia(blob, "cover.jpg");
+      if (!mediaUrl) return;
+      // Persist to backend
+      await api.users.updateSettings(user.username, {
+        coverImage: mediaUrl,
+        callerSupabaseId: (user as any).supabaseId,
+      }).catch(() => {});
+      // Update local context + storage
+      const updated = { ...user, coverImage: mediaUrl };
+      setUser(updated);
+      localStorage.setItem("reelsy_user", JSON.stringify(updated));
+    } finally {
+      setCoverUploading(false);
+    }
   };
 
   return (
@@ -1626,8 +1656,14 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
               className="h-14 bg-gradient-to-br from-secondary to-muted relative overflow-hidden"
               style={user?.coverImage ? { backgroundImage: `url(${user.coverImage})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
             >
-              <button onClick={() => coverInputRef.current?.click()} className="absolute top-2 right-2 w-6 h-6 rounded-full bg-background/70 backdrop-blur flex items-center justify-center">
-                <Camera className="w-3 h-3" />
+              <button
+                onClick={() => coverInputRef.current?.click()}
+                disabled={coverUploading}
+                className="absolute top-2 right-2 w-6 h-6 rounded-full bg-background/70 backdrop-blur flex items-center justify-center"
+              >
+                {coverUploading
+                  ? <span className="w-3 h-3 border border-foreground border-t-transparent rounded-full animate-spin" />
+                  : <Camera className="w-3 h-3" />}
               </button>
             </div>
             <div className="px-4 pb-4">
@@ -1828,6 +1864,17 @@ const SettingsTab = ({ onNavVisible }: { onNavVisible?: (v: boolean) => void }) 
         {sheet === "password" && <ChangePasswordSheet onClose={() => setSheet(null)} />}
         {sheet === "accounts" && <MultiAccountSheet onClose={() => setSheet(null)} />}
         {sheet === "verification" && <VerificationModal onClose={() => setSheet(null)} onSubmit={() => {}} onApproved={(approved) => { if (user && approved) setUser({ ...user, verified: true }); setSheet(null); }} />}
+      </AnimatePresence>
+
+      {/* Cover image cropper — full-screen modal */}
+      <AnimatePresence>
+        {cropperSrc && (
+          <ImageCropper
+            src={cropperSrc}
+            onCrop={handleCropDone}
+            onCancel={() => setCropperSrc(null)}
+          />
+        )}
       </AnimatePresence>
     </>
   );

@@ -592,6 +592,7 @@ router.get('/profile/:username', async (req, res) => {
       displayName: mongoUser.displayName,
       email: mongoUser.userEmail,
       profileImage: mongoUser.profileImage,
+      coverImage: (mongoUser as any).coverImage || null,
       bio: (mongoUser as any).bio,
       age: mongoUser.age,
       interests: mongoUser.interests,
@@ -919,7 +920,7 @@ router.post('/send-magic-link', async (req, res) => {
       return res.status(400).json({ error: 'Valid email is required' });
     }
 
-    const token = generateMagicLinkToken(email.toLowerCase());
+    const token = await generateMagicLinkToken(email.toLowerCase());
     const appUrl = process.env.APP_URL || 'https://reelsy-com.vercel.app';
     const magicUrl = `${appUrl}?magic=${token}`;
 
@@ -952,7 +953,7 @@ router.get('/verify-magic-link', async (req, res) => {
       return res.status(400).json({ error: 'Token is required' });
     }
 
-    const result = verifyMagicLinkToken(token);
+    const result = await verifyMagicLinkToken(token);
     if (!result.valid || !result.email) {
       return res.status(401).json({ error: 'INVALID_OR_EXPIRED_LINK', message: 'This magic link is invalid or has expired' });
     }
@@ -1001,7 +1002,7 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     // Reuse magic link token for password reset flow
-    const token = generateMagicLinkToken(email.toLowerCase());
+    const token = await generateMagicLinkToken(email.toLowerCase());
     const appUrl = process.env.APP_URL || 'https://reelsy-com.vercel.app';
     const resetUrl = `${appUrl}?reset=${token}`;
 

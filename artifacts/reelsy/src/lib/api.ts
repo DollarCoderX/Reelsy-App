@@ -197,7 +197,7 @@ export const api = {
     getStats: (username: string) =>
       request<{ friendCount: number; postCount: number; username: string }>(`/users/${username}/stats`),
 
-    updateSettings: (username: string, settings: { friendPolicy?: 'open' | 'request-only'; messagingPolicy?: 'everyone' | 'friends-only'; bio?: string; displayName?: string; callerSupabaseId?: string }) =>
+    updateSettings: (username: string, settings: { friendPolicy?: 'open' | 'request-only'; messagingPolicy?: 'everyone' | 'friends-only'; bio?: string; displayName?: string; coverImage?: string; profileImage?: string; callerSupabaseId?: string }) =>
       request<{ message: string }>(`/users/${username}/settings`, {
         method: 'PATCH',
         body: JSON.stringify(settings),
@@ -340,6 +340,7 @@ export interface UserProfile {
   username: string;
   displayName: string;
   profileImage?: string;
+  coverImage?: string;
   bio?: string;
   tier?: string;
   supabaseId?: string;

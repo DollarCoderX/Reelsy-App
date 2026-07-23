@@ -287,6 +287,9 @@ router.patch('/users/:username/settings', async (req, res) => {
     if (bio !== undefined) updateFields.bio = String(bio).slice(0, 500);
     if (displayName !== undefined) updateFields.displayName = String(displayName).slice(0, 64);
     if (profileImage !== undefined) updateFields.profileImage = String(profileImage).slice(0, 500);
+    if ((req.body as any).coverImage !== undefined) {
+      updateFields.coverImage = String((req.body as any).coverImage).slice(0, 1000);
+    }
 
     await usersCollection.updateOne(
       { username },

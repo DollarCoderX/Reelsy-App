@@ -163,7 +163,7 @@ const RealUserProfileView = ({
 
   const avatarUrl = realUser.profileImage ||
     `https://api.dicebear.com/7.x/avataaars/svg?seed=${realUser.username}&backgroundColor=b6e3f4`;
-  const coverUrl = coverForUser(realUser.username);
+  const coverUrl = realUser.coverImage || coverForUser(realUser.username);
   const displayName = realUser.displayName || realUser.username;
 
   const handleShare = () => {
